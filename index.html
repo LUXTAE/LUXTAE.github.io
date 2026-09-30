@@ -462,13 +462,18 @@ const byId = id => S.games.find(g=>g.id===id);
 const decodeEnt = t => { const el=document.createElement('textarea'); el.innerHTML=String(t||''); return el.value; };
 const STEAM_IMG = (id,f) => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${encodeURIComponent(id)}/${f}`;
 
-function coverSrc(g){
-  if(g.img) return {src:g.img, fb:''};
-  if(g.steam) return {src:STEAM_IMG(g.steam,'library_600x900_2x.jpg'), fb:STEAM_IMG(g.steam,'header.jpg')};
+// Grids use Steam's 300x450 art; the game page uses the 600x900 version.
+function coverSrc(g, big){
+  if(g.img){
+    if(!big && /library_capsule_2x\.jpg/.test(g.img)) return {src:g.img.replace('library_capsule_2x.jpg','library_capsule.jpg'), fb:g.img};
+    return {src:g.img, fb:''};
+  }
+  if(g.steam) return big ? {src:STEAM_IMG(g.steam,'library_600x900_2x.jpg'), fb:STEAM_IMG(g.steam,'header.jpg')}
+                         : {src:STEAM_IMG(g.steam,'library_600x900.jpg'), fb:STEAM_IMG(g.steam,'library_600x900_2x.jpg')};
   return null;
 }
-function cover(g, rank){
-  const c=coverSrc(g);
+function cover(g, rank, big){
+  const c=coverSrc(g, big);
   const img = c ? `<img src="${esc(c.src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" ${c.fb?`data-fb="${esc(c.fb)}"`:''}>` : '';
   return `<div class="cover${c?' has-img':''}" style="--h:${hue(g.title)}">${img}${g.platform?`<span class="cv-plat">${esc(shortPlat(g.platform))}</span>`:''}${rank?`<span class="cv-rank">${rank}</span>`:''}<span class="cv-title">${esc(g.title)}</span></div>`;
 }
@@ -595,7 +600,7 @@ function viewProfile(){
   const nFav=top.filter(Boolean).length;
   const favs = !nFav ? (canWrite()?`<section><div class="panel empty" style="padding:18px"><strong>Pick your four favorites</strong><span>They show at the top of your profile for everyone who visits.</span><button class="btn primary" data-favslot="1">Choose favorites</button></div></section>`:'')
     : `<section><div class="sec-head"><h2>Favorite games</h2><span class="hint">The four that define my taste</span></div>
-    <div class="top4">${top.map((g,i)=> g?`<button class="card" data-open="${esc(g.id)}">${cover(g,i+1)}</button>`:(canWrite()?`<button class="slot-empty" data-favslot="${i+1}">+ Add favorite</button>`:'<div></div>')).join('')}</div>
+    <div class="top4">${top.map((g,i)=> g?`<button class="card" data-open="${esc(g.id)}">${cover(g,i+1,true)}</button>`:(canWrite()?`<button class="slot-empty" data-favslot="${i+1}">+ Add favorite</button>`:'<div></div>')).join('')}</div>
     ${canWrite()?'<div><button class="btn ghost sm" data-favslot="1" style="margin-left:-8px">Change favorites</button></div>':''}</section>`;
   const playing=st.playing.length?`<section><div class="sec-head"><h2>Currently playing</h2></div><div class="grid">${st.playing.map(gameCard).join('')}</div></section>`:'';
   const revs=G.filter(g=>g.review).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).slice(0,4);
@@ -790,7 +795,7 @@ function yearReview(G){
     <div class="yir-head"><div><div class="label">Year in review</div><h2 class="yir-title">${y} in games</h2></div>
       ${years.length>1?`<div class="chips">${years.slice(0,6).map(v=>`<button class="chip" data-year="${v}" aria-pressed="${v===y}">${v}</button>`).join('')}</div>`:''}</div>
     <div class="yir-grid">
-      <button class="yir-top" data-open="${esc(top.id)}">${cover(top)}<div><div class="label">Most played</div><div class="yir-big">${esc(top.title)}</div><div class="yir-sub num">${fmtH(totalHours(top))} total</div></div></button>
+      <button class="yir-top" data-open="${esc(top.id)}">${cover(top,"",true)}<div><div class="label">Most played</div><div class="yir-big">${esc(top.title)}</div><div class="yir-sub num">${fmtH(totalHours(top))} total</div></div></button>
       <div class="yir-nums">
         <div><b class="num">${T.length}</b><span>games played</span></div>
         <div><b class="num">${fin.length}</b><span>finished</span></div>
@@ -897,8 +902,8 @@ function detail(id){
     <div class="dlg-head"><h2>${esc(g.title)}</h2><button class="btn ghost sm" data-share="${esc(g.id)}">Copy link</button><button class="btn ghost sm" data-close>Close</button></div>
     <div class="dlg-body">
       <div class="detail">${canWrite()
-        ?`<div class="cover-edit" id="quickDrop">${cover(g,g.top||'')}<label class="btn sm" for="quickCover" style="justify-content:center">Upload cover</label><input type="file" accept="image/*" id="quickCover" class="vh"><span style="font-size:12px;color:var(--muted);text-align:center">or paste an image</span></div>`
-        :cover(g,g.top||'')}
+        ?`<div class="cover-edit" id="quickDrop">${cover(g,g.top||'',true)}<label class="btn sm" for="quickCover" style="justify-content:center">Upload cover</label><input type="file" accept="image/*" id="quickCover" class="vh"><span style="font-size:12px;color:var(--muted);text-align:center">or paste an image</span></div>`
+        :cover(g,g.top||'',true)}
         <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
         <div class="card-meta">${g.tier?`<span class="tier-badge" style="--tc:${(TIERS.find(t=>t[0]===g.tier)||[])[1]||'#ccc'}" title="${esc(g.tier)} tier">${esc(g.tier)}</span>`:''}${pill(g.status)}${canWrite()
           ?`<span class="rater" role="group" aria-label="Rate ${esc(g.title)}">${Array.from({length:10},(_,i)=>i+1).map(v=>`<button class="half ${v%2?'l':'r'} ${v<=(+g.rating||0)?'on':''}" data-rate="${v}" data-g="${esc(g.id)}" aria-label="${v/2} stars"><span>★</span></button>`).join('')}</span><span class="rate-val">${g.rating?(+g.rating/2).toFixed(1):'Tap to rate'}</span>`
@@ -1256,7 +1261,7 @@ function rateStep(){
   openDlg(`<div class="dlg rate-dlg">
     <div class="dlg-head"><h2>Rate your games</h2><span class="num" style="color:var(--muted);font-size:13px">${RATE.i+1} / ${n}</span><button class="btn ghost sm" data-close>Done</button></div>
     <div class="dlg-body rate-body">
-      <div class="rate-cover">${cover(cur)}</div>
+      <div class="rate-cover">${cover(cur,"",true)}</div>
       <div class="rate-info">
         <h3>${esc(cur.title)}</h3>
         <div class="kv">${cur.platform?`<span>${esc(cur.platform)}</span>`:''}${h?`<span class="num">${fmtH(h)} played</span>`:''}${cur.lastPlayed?`<span>Last played ${esc(fmtDate(cur.lastPlayed))}</span>`:''}</div>
