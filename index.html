@@ -469,7 +469,7 @@ function coverSrc(g, big){
     return {src:g.img, fb:''};
   }
   if(g.steam) return big ? {src:STEAM_IMG(g.steam,'library_600x900_2x.jpg'), fb:STEAM_IMG(g.steam,'header.jpg')}
-                         : {src:STEAM_IMG(g.steam,'library_600x900.jpg'), fb:STEAM_IMG(g.steam,'library_600x900_2x.jpg')};
+                         : {src:STEAM_IMG(g.steam,'library_600x900.jpg'), fb:STEAM_IMG(g.steam,'library_600x900_2x.jpg')+'|'+STEAM_IMG(g.steam,'header.jpg')};
   return null;
 }
 function cover(g, rank, big){
@@ -480,7 +480,7 @@ function cover(g, rank, big){
 // Broken cover image: try the fallback, then fall back to the generated cover.
 document.addEventListener('error', e=>{
   const im=e.target; if(!(im instanceof HTMLImageElement) || !im.closest('.cover')) return;
-  if(im.dataset.fb){ const f=im.dataset.fb; delete im.dataset.fb; im.src=f; return; }
+  if(im.dataset.fb){ const [f,...rest]=im.dataset.fb.split('|'); if(rest.length) im.dataset.fb=rest.join('|'); else delete im.dataset.fb; im.src=f; return; }
   im.closest('.cover').classList.remove('has-img'); im.remove();
 }, true);
 
@@ -1308,7 +1308,7 @@ async function exportTiers(){
   x.fillStyle='#A3A8B6'; x.font='500 20px "Figtree", system-ui, sans-serif';
   const n=rows.reduce((a,r)=>a+r.gs.length,0); x.fillText(`${n} games ranked`, PAD, 102);
   const all=rows.flatMap(r=>r.gs); const imgs={};
-  await Promise.all(all.map(async g=>{ const cs=coverSrc(g); let im=cs?await loadImg(cs.src):null; if(!im && cs?.fb) im=await loadImg(cs.fb); imgs[g.id]=im; }));
+  await Promise.all(all.map(async g=>{ const cs=coverSrc(g); let im=cs?await loadImg(cs.src):null; for(const f of (cs?.fb||'').split('|').filter(Boolean)){ if(im) break; im=await loadImg(f); } imgs[g.id]=im; }));
   let y=HEAD;
   rows.forEach((r,ri)=>{
     const h=rowH[ri];
