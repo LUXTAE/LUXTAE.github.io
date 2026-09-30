@@ -352,6 +352,25 @@ a.plink:hover{text-decoration:underline}
 .swatch span:first-of-type{display:block;width:30px;height:30px;border-radius:50%;background:var(--sw);box-shadow:0 0 0 2px var(--surface),0 0 0 4px transparent}
 .swatch input:checked + span{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
 .swatch input:focus-visible + span{outline:2px solid var(--accent);outline-offset:4px}
+.yir{padding:18px;display:flex;flex-direction:column;gap:16px;background:linear-gradient(135deg,var(--accent-soft),var(--surface) 60%)}
+.yir-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.yir-title{font-size:30px;line-height:1.1}
+.yir-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+.yir-top{display:grid;grid-template-columns:110px 1fr;gap:14px;align-items:end;background:none;border:0;padding:0;text-align:left}
+.yir-big{font:700 24px/1.15 var(--f-display);margin-top:4px;text-wrap:balance}
+.yir-sub{color:var(--muted);font-size:14px;margin-top:2px}
+.yir-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-content:end}
+.yir-nums div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.yir-nums b{display:block;font-size:26px;line-height:1.1}
+.yir-nums span{font-size:12px;color:var(--muted)}
+.yir-months .mbars{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;height:90px;align-items:end;margin-top:8px}
+.mbar{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:3px}
+.mbar span{width:100%;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px}
+.mbar em{font:500 10px var(--f-mono);font-style:normal;color:var(--faint)}
+.yir-covers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px}
+.yir-covers .cv-title,.yir-covers .cv-plat{font-size:10px}
+.yir-note{margin:0;font-size:12px;color:var(--faint)}
+@media (max-width:760px){ .yir-grid{grid-template-columns:1fr} }
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -714,6 +733,41 @@ document.addEventListener('dragover', e=>{ const z=e.target.closest?.('[data-tie
 document.addEventListener('drop', e=>{ const z=e.target.closest?.('[data-tierdrop]'); if(!z) return; e.preventDefault(); z.classList.remove('drop-hover');
   const id=e.dataTransfer.getData('text/plain'); if(!id) return; const before=e.target.closest('[data-tg]')?.dataset.tg; placeTier(id, z.dataset.tierdrop, before&&before!==id?before:null); });
 
+function touchedIn(g,y){
+  return [g.lastPlayed,g.finished,g.started].some(d=>String(d||'').startsWith(y)) || (g.sessions||[]).some(x=>String(x.d||'').startsWith(y));
+}
+function yearReview(G){
+  const years=[...new Set(G.flatMap(g=>[g.lastPlayed,g.finished,g.started,...(g.sessions||[]).map(x=>x.d)]).filter(Boolean).map(d=>String(d).slice(0,4)).filter(y=>/^\d{4}$/.test(y)))].sort().reverse();
+  if(!years.length) return '';
+  const y=years.includes(S.year)?S.year:years[0];
+  const T=G.filter(g=>touchedIn(g,y));
+  if(!T.length) return '';
+  const fin=T.filter(g=>(g.status==='beaten'||g.status==='completed')&&String(g.finished||'').startsWith(y));
+  const top=T.slice().sort((a,b)=>totalHours(b)-totalHours(a))[0];
+  const best=T.filter(g=>+g.rating).sort((a,b)=>+b.rating-+a.rating||totalHours(b)-totalHours(a)).slice(0,4);
+  const sessH=T.reduce((a,g)=>a+(g.sessions||[]).filter(x=>String(x.d||'').startsWith(y)).reduce((b,x)=>b+(+x.h||0),0),0);
+  const months=Array.from({length:12},(_,i)=>T.filter(g=>String(g.lastPlayed||'').slice(0,7)===`${y}-${String(i+1).padStart(2,'0')}`).length);
+  const mmax=Math.max(1,...months);
+  const plats={}; T.forEach(g=>{ const p=g.platform||'Other'; plats[p]=(plats[p]||0)+1; });
+  const platTop=Object.entries(plats).sort((a,b)=>b[1]-a[1]);
+  const mn=['J','F','M','A','M','J','J','A','S','O','N','D'];
+  return `<section class="yir panel">
+    <div class="yir-head"><div><div class="label">Year in review</div><h2 class="yir-title">${y} in games</h2></div>
+      ${years.length>1?`<div class="chips">${years.slice(0,6).map(v=>`<button class="chip" data-year="${v}" aria-pressed="${v===y}">${v}</button>`).join('')}</div>`:''}</div>
+    <div class="yir-grid">
+      <button class="yir-top" data-open="${esc(top.id)}">${cover(top)}<div><div class="label">Most played</div><div class="yir-big">${esc(top.title)}</div><div class="yir-sub num">${fmtH(totalHours(top))} total</div></div></button>
+      <div class="yir-nums">
+        <div><b class="num">${T.length}</b><span>games played</span></div>
+        <div><b class="num">${fin.length}</b><span>finished</span></div>
+        ${sessH?`<div><b class="num">${fmtH(sessH)}</b><span>logged in sessions</span></div>`:`<div><b class="num">${platTop.length}</b><span>platform${platTop.length===1?'':'s'}</span></div>`}
+      </div>
+      <div class="yir-months"><div class="label">Games last played each month</div>
+        <div class="mbars">${months.map((n,i)=>`<div class="mbar" title="${n} game${n===1?'':'s'}"><span style="height:${n/mmax*100}%"></span><em>${mn[i]}</em></div>`).join('')}</div></div>
+      ${best.length?`<div class="yir-best"><div class="label">Best rated</div><div class="yir-covers">${best.map(g=>`<button class="card" data-open="${esc(g.id)}">${cover(g)}<span class="card-meta">${stars(g.rating)}</span></button>`).join('')}</div></div>`:''}
+    </div>
+    <p class="yir-note">Hours are lifetime totals from Steam; the year counts games you played, started or finished in ${y}.</p>
+  </section>`;
+}
 function viewStats(){
   if(!VG().length) return emptyAll();
   const st=stats(), G=VG();
@@ -723,7 +777,7 @@ function viewStats(){
   const counts=STATUSES.map(s=>[s,G.filter(g=>g.status===s.k).length]).filter(x=>x[1]);
   const years={}; G.filter(g=>g.finished&&(g.status==='beaten'||g.status==='completed')).forEach(g=>{const y=g.finished.slice(0,4); years[y]=(years[y]||0)+1;});
   const compRate=st.played?Math.round(st.finished/st.played*100):0;
-  return `<section><div class="statline">
+  return yearReview(G)+`<section><div class="statline">
       <div class="stat"><b>${fmtH(st.hours)}</b><span>Total playtime</span></div>
       <div class="stat"><b>${compRate}%</b><span>Finish rate</span></div>
       <div class="stat"><b>${G.filter(g=>g.status==='completed').length}</b><span>100% completions</span></div>
@@ -1074,6 +1128,7 @@ document.addEventListener('click', async e=>{
     await saveGame({...g, rating:r, updatedAt:Date.now()}, r?'Rated '+(r/2)+' stars':'Rating cleared'); detail(g.id); return; }
   if(d.reallydel){ const id=d.reallydel; closeDlg(); await commit(()=>{ S.games=S.games.filter(g=>g.id!==id); return ()=>removeGame(id); }, 'Deleted'); return; }
   if(d.delsess){ const g=byId(d.g); if(!g) return; await saveGame({...g, sessions:(g.sessions||[]).filter((_,i)=>i!==+d.delsess), updatedAt:Date.now()}); detail(g.id); return; }
+  if(d.year){ S.year=d.year; render(); return; }
   if(d.shelf){ S.lib.shelf=d.shelf; S.libLimit=120; persistLib(); render(); return; }
   if(d.budget){ S.next.budget=d.budget; S.pickId=null; render(); return; }
   if(d.start){ const g=byId(d.start); if(!g) return; S.pickId=null; await saveGame({...g, status:'playing', started:g.started||today(), updatedAt:Date.now()}, 'Moved to Playing'); return; }
