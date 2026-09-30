@@ -290,6 +290,11 @@ textarea.input{resize:vertical;min-height:90px;line-height:1.5}
 .rater .half:hover ~ .half{color:var(--star-off)}
 .rate-val{font:500 13px var(--f-mono);color:var(--muted);margin-left:8px}
 .banner.warn{background:color-mix(in srgb,var(--warn) 12%,var(--surface));border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.rate-body{display:grid;grid-template-columns:180px 1fr;gap:20px;align-items:center}
+.rate-info{display:flex;flex-direction:column;gap:12px;min-width:0}
+.rate-info h3{font-size:22px}
+.rater.big .half{font-size:44px}
+@media (max-width:520px){ .rate-body{grid-template-columns:1fr} .rate-cover{max-width:160px;margin:0 auto;width:100%} .rater.big .half{font-size:40px} }
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -432,7 +437,7 @@ function render(){
   $('#tabs').innerHTML = TABS.map(t=>`<button class="tab" data-tab="${t.k}" ${S.tab===t.k?'aria-current="page"':''}>${t.l}</button>`).join('');
   $('#ownerBar').innerHTML = isOwner() ? `
     <button class="btn ghost sm" data-act="preview">${S.preview?'Exit visitor view':'View as visitor'}</button>
-    ${S.preview?'':'<button class="btn sm" data-act="log">Log session</button><button class="btn primary sm" data-act="add">+ Add game</button>'}` : '';
+    ${S.preview?'':'<button class="btn sm" data-act="rate">Rate games</button><button class="btn sm" data-act="log">Log session</button><button class="btn primary sm" data-act="add">+ Add game</button>'}` : '';
   $('#footAuth').innerHTML = DEMO ? '' : S.session
     ? `<button class="btn ghost sm" data-act="tools">Import / export</button><button class="btn ghost sm" data-act="logout">Log out</button>`
     : `<button class="btn ghost sm" data-act="login">Owner login</button>`;
@@ -611,13 +616,14 @@ function imgToCover(file){
     im.src=url;
   });
 }
-// Box art from Wikipedia game articles (free, no key needed).
+// Official Steam box art, looked up by title through the database (Steam blocks direct browser lookups).
+const NOT_GAME = /soundtrack|costume|\bdemo\b|\bdlc\b|season pass|artbook|art book|upgrade|unlock|\bpack\b|bundle|playtest|dedicated server|\bost\b|skin/i;
 async function findCovers(title){
-  const q=encodeURIComponent(title+' video game');
-  const url=`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrsearch=${q}&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=500`;
-  const r=await fetch(url); if(!r.ok) throw new Error('search');
-  const j=await r.json(); const pages=Object.values(j.query?.pages||{}).sort((a,b)=>a.index-b.index);
-  return pages.filter(p=>p.thumbnail?.source && !/\.svg/i.test(p.thumbnail.source)).map(p=>({src:p.thumbnail.source, label:p.title})).slice(0,6);
+  if(!sb) throw new Error('offline');
+  const {data,error}=await sb.rpc('find_games',{q:title});
+  if(error) throw error;
+  const items=(data||[]).filter(i=>i&&i.id&&!NOT_GAME.test(i.name));
+  return items.slice(0,6).map(i=>({steam:String(i.id), label:i.name}));
 }
 const steamIdFrom = s => (String(s||'').match(/(?:app\/|apps\/)(\d+)/)||[])[1] || (/^\d+$/.test(String(s||'').trim())?String(s).trim():'');
 let onPasteImage=null;
@@ -723,9 +729,9 @@ function editForm(id){
     const t=$('#f-title').value.trim(); if(!t){ err('Type the title first.'); return; }
     const box=$('#cands'); box.innerHTML='<span class="hint">Searching…</span>';
     try{ const res=await findCovers(t);
-      box.innerHTML = res.length ? res.map((c,i)=>`<button type="button" class="cand" data-src="${esc(c.src)}" title="${esc(c.label)}" aria-pressed="${img===c.src}">${cover({title:c.label,img:c.src})}</button>`).join('') : '<span class="hint">No covers found. Try a shorter title, or upload one.</span>';
-      box.querySelectorAll('.cand').forEach(b=>b.addEventListener('click',()=>{ img=b.dataset.src; steam=''; box.querySelectorAll('.cand').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); drawPrev(); }));
-    }catch(_){ box.innerHTML='<span class="hint">Cover search is unavailable right now. Upload one instead.</span>'; }
+      box.innerHTML = res.length ? res.map(c=>`<button type="button" class="cand" data-steam="${esc(c.steam)}" title="${esc(c.label)}" aria-pressed="${steam===c.steam}">${cover({title:c.label,steam:c.steam})}</button>`).join('') : '<span class="hint">No match on Steam. Try a shorter title, paste an image link, or upload one.</span>';
+      box.querySelectorAll('.cand').forEach(b=>b.addEventListener('click',()=>{ steam=b.dataset.steam; img=''; box.querySelectorAll('.cand').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); drawPrev(); }));
+    }catch(_){ box.innerHTML='<span class="hint">Cover search needs you to be logged in. You can still upload one.</span>'; }
   });
   wireDrop($('#coverPick'), takeFile);
   onPasteImage=takeFile;
@@ -737,7 +743,7 @@ async function submitGame(id, fd, img, steam){
   if(!title){ const p=$('#formErr'); p.textContent='Add a title to save this game.'; p.hidden=false; return; }
   const n=v=>{const x=parseFloat(v); return isFinite(x)&&x>=0?x:null;};
   const prev=id?byId(id):null, rating=+fd.get('rating'), status=fd.get('status');
-  if(!img && !steam && !prev){ try{ const c=await Promise.race([findCovers(title), new Promise((_,r)=>setTimeout(()=>r(),3000))]); if(c?.[0]) img=c[0].src; }catch(_){} }
+  if(!img && !steam && !prev){ try{ const c=await Promise.race([findCovers(title), new Promise((_,r)=>setTimeout(()=>r(),3000))]); if(c?.[0]) steam=c[0].steam; }catch(_){} }
   const g={ ...(prev||{}), id: id||newId(),
     title, platform:(fd.get('platform')||'').trim(), status, rating: rating||null,
     review:(fd.get('review')||'').trim(), spoiler:fd.get('spoiler')==='on',
@@ -877,6 +883,14 @@ document.addEventListener('click', async e=>{
   else if(act==='tools') toolsForm();
   else if(act==='export') exportData();
   else if(act==='more'){ S.libLimit=(S.libLimit||120)+120; render(); }
+  else if(act==='rate') rateMode();
+  else if(act==='rskip'){ RATE.i++; rateStep(); }
+  else if(act==='rback'){ RATE.i=Math.max(0,RATE.i-1); rateStep(); }
+  else if(d.rrate){ const g=RATE.list[RATE.i]; if(!g) return; const v=+d.rrate; RATE.done++; RATE.i++;
+    const cur=byId(g.id)||g; saveGame({...cur, rating:v, updatedAt:Date.now()}); rateStep(); }
+  else if(d.rstatus){ const g=RATE.list[RATE.i]; if(!g) return; const cur=byId(g.id)||g;
+    const ng={...cur, status:d.rstatus, updatedAt:Date.now()}; if((d.rstatus==='beaten'||d.rstatus==='completed')&&!ng.finished) ng.finished=cur.lastPlayed||'';
+    RATE.list[RATE.i]=ng; saveGame(ng); rateStep(); }
 });
 document.addEventListener('input', e=>{
   if(e.target.id==='libq'){ S.lib.q=e.target.value; const pos=e.target.selectionStart; clearTimeout(S._qt); S._qt=setTimeout(()=>{ render(); const q=$('#libq'); if(q){ q.focus(); try{q.setSelectionRange(pos,pos);}catch(_){} } },150); }
@@ -896,6 +910,45 @@ function roll(){
   let pick=c[0]; for(let i=0;i<c.length;i++){ r-=w[i]; if(r<=0){pick=c[i];break;} }
   S.pickId=pick.id; render(); $('#pickPanel')?.classList.add('rolling');
 }
+
+/* ============ rapid rating ============ */
+const RATE={list:[], i:0, done:0};
+function rateMode(){
+  RATE.list=S.games.filter(g=>(g.rating==null||g.rating==='') && !['backlog','wishlist'].includes(g.status))
+    .sort((a,b)=>totalHours(b)-totalHours(a) || (b.lastPlayed||'').localeCompare(a.lastPlayed||''));
+  RATE.i=0; RATE.done=0; rateStep();
+}
+function rateStep(){
+  const g=RATE.list[RATE.i], n=RATE.list.length;
+  if(!g){
+    openDlg(`<div class="dlg"><div class="dlg-head"><h2>All caught up</h2><button class="btn ghost sm" data-close>Close</button></div>
+      <div class="dlg-body"><p style="margin:0">You rated ${RATE.done} game${RATE.done===1?'':'s'} this round. ${n-RATE.done>0?`${n-RATE.done} skipped.`:''}</p></div></div>`);
+    return;
+  }
+  const cur=byId(g.id)||g, h=totalHours(cur);
+  const sts=[['played','Played'],['beaten','Beaten'],['completed','100%'],['shelved','Shelved'],['abandoned','Dropped']];
+  openDlg(`<div class="dlg rate-dlg">
+    <div class="dlg-head"><h2>Rate your games</h2><span class="num" style="color:var(--muted);font-size:13px">${RATE.i+1} / ${n}</span><button class="btn ghost sm" data-close>Done</button></div>
+    <div class="dlg-body rate-body">
+      <div class="rate-cover">${cover(cur)}</div>
+      <div class="rate-info">
+        <h3>${esc(cur.title)}</h3>
+        <div class="kv">${cur.platform?`<span>${esc(cur.platform)}</span>`:''}${h?`<span class="num">${fmtH(h)} played</span>`:''}${cur.lastPlayed?`<span>Last played ${esc(fmtDate(cur.lastPlayed))}</span>`:''}</div>
+        <div class="rater big" role="group" aria-label="Rating">${Array.from({length:10},(_,i)=>i+1).map(v=>`<button class="half ${v%2?'l':'r'}" data-rrate="${v}" aria-label="${v/2} stars"><span>★</span></button>`).join('')}</div>
+        <div class="chips" role="group" aria-label="Status">${sts.map(([k,l])=>`<button class="chip" data-rstatus="${k}" aria-pressed="${cur.status===k}">${l}</button>`).join('')}</div>
+        <p class="hint" style="margin:0;color:var(--muted);font-size:13px">Tap the stars to rate and move on. Keys 1 to 5 rate, → skips, ← goes back.</p>
+      </div>
+    </div>
+    <div class="dlg-foot"><button class="btn ghost" data-act="rback" ${RATE.i?'':'disabled'}>Back</button><span class="spacer"></span><button class="btn" data-act="rskip">Skip</button></div>
+  </div>`);
+}
+document.addEventListener('keydown', e=>{
+  if(!dlg.open || !dlg.querySelector('.rate-dlg') || e.target.closest?.('input,textarea')) return;
+  if(/^[1-5]$/.test(e.key)){ e.preventDefault(); dlg.querySelector(`[data-rrate="${(+e.key)*2}"]`)?.click(); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); RATE.i++; rateStep(); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); RATE.i=Math.max(0,RATE.i-1); rateStep(); }
+});
+window.addEventListener('hashchange',()=>{ const t=location.hash.slice(1); if(TABS.some(x=>x.k===t) && S.tab!==t){ S.tab=t; render(); } });
 
 /* ============ boot ============ */
 render();
