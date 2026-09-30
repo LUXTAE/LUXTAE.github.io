@@ -715,7 +715,7 @@ function tierBoard(rows, editable){
 function viewTiers(){
   const G=VG(), rows=tierRows(G), any=rows.some(r=>r.gs.length);
   if(!canWrite()){
-    return any ? `<section><div class="sec-head"><h2>Tier list</h2><span class="hint">Every game I've ranked, best to worst</span></div>${tierBoard(rows.filter(r=>r.gs.length),false)}</section>`
+    return any ? `<section><div class="sec-head"><h2>Tier list</h2><span class="hint">Every game I've ranked, best to worst</span><span class="spacer"></span><button class="btn sm" data-act="tierimg">Save as image</button></div>${tierBoard(rows.filter(r=>r.gs.length),false)}</section>`
       : `<div class="panel empty"><strong>No tier list yet</strong><span>Check back soon.</span></div>`;
   }
   const q=(S.tierQ||'').trim().toLowerCase();
@@ -723,7 +723,7 @@ function viewTiers(){
     .sort((a,b)=>(+b.rating||0)-(+a.rating||0) || totalHours(b)-totalHours(a));
   const shown=pool.slice(0, S.tierLimit||48);
   return `<section>
-    <div class="sec-head"><h2>Tier list</h2><span class="hint">${S.tierSel?`Placing <b>${esc(byId(S.tierSel)?.title||'')}</b>. Tap a row to drop it, or tap it again to cancel.`:'Drag a game into a row, or tap a game then tap a row.'}</span></div>
+    <div class="sec-head"><h2>Tier list</h2>${any?'<button class="btn sm" data-act="tierimg" style="order:3">Save as image</button>':''}<span class="hint">${S.tierSel?`Placing <b>${esc(byId(S.tierSel)?.title||'')}</b>. Tap a row to drop it, or tap it again to cancel.`:'Drag a game into a row, or tap a game then tap a row.'}</span></div>
     ${tierBoard(rows,true)}
     <div class="tier-pool" data-tierdrop="">
       <div class="sec-head"><h2 style="font-size:15px">Unranked</h2><span class="hint">${pool.length} game${pool.length===1?'':'s'} · best rated first</span><span class="spacer"></span>
@@ -1181,6 +1181,7 @@ document.addEventListener('click', async e=>{
   else if(act==='selnone'){ S.sel=new Set(); render(); }
   else if(act==='bulkhide'){ await bulkApply({hidden:true}, 'Hid {n} game{s} from visitors'); }
   else if(act==='bulkshow'){ await bulkApply({hidden:false}, 'Unhid {n} game{s}'); }
+  else if(act==='tierimg'){ exportTiers(); }
   else if(act==='tiermore'){ S.tierLimit=(S.tierLimit||48)+48; render(); }
   else if(act==='rate') rateMode();
   else if(act==='rskip'){ RATE.i++; rateStep(); }
@@ -1252,6 +1253,65 @@ document.addEventListener('keydown', e=>{
 });
 window.addEventListener('hashchange',()=>{ const t=location.hash.slice(1); if(t.startsWith('g-')){ if(!dlg.open) detail(t.slice(2)); return; } if(TABS.some(x=>x.k===t) && S.tab!==t){ S.tab=t; render(); } });
 
+/* ============ tier list image ============ */
+function loadImg(src){
+  return new Promise(res=>{
+    if(!src) return res(null);
+    const im=new Image(); if(!src.startsWith('data:')) im.crossOrigin='anonymous';
+    let done=false; const fin=v=>{ if(!done){ done=true; res(v); } };
+    im.onload=()=>fin(im); im.onerror=()=>fin(null); setTimeout(()=>fin(null),8000);
+    im.src=src;
+  });
+}
+function roundRect(x,X,Y,W,H,r){ x.beginPath(); x.moveTo(X+r,Y); x.arcTo(X+W,Y,X+W,Y+H,r); x.arcTo(X+W,Y+H,X,Y+H,r); x.arcTo(X,Y+H,X,Y,r); x.arcTo(X,Y,X+W,Y,r); x.closePath(); }
+async function exportTiers(){
+  const rows=tierRows(VG()).filter(r=>r.gs.length); if(!rows.length){ toast('Rank some games first'); return; }
+  toast('Building your image…');
+  try{ await document.fonts?.ready; }catch(_){}
+  const W=1200, PAD=28, LBL=96, CW=92, CH=138, GAP=8, per=Math.floor((W-PAD*2-LBL-GAP)/(CW+GAP));
+  const HEAD=120, FOOT=56;
+  const rowH=rows.map(r=>Math.ceil(r.gs.length/per)*(CH+GAP)+GAP);
+  const H=HEAD+rowH.reduce((a,b)=>a+b+6,0)+FOOT;
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+  x.fillStyle='#0E1015'; x.fillRect(0,0,W,H);
+  x.fillStyle='#E9EBF1'; x.font='700 44px "Chakra Petch", system-ui, sans-serif'; x.textBaseline='alphabetic';
+  x.fillText(`${S.profile.name||'My'}'s tier list`, PAD, 72);
+  x.fillStyle='#A3A8B6'; x.font='500 20px "Figtree", system-ui, sans-serif';
+  const n=rows.reduce((a,r)=>a+r.gs.length,0); x.fillText(`${n} games ranked`, PAD, 102);
+  const all=rows.flatMap(r=>r.gs); const imgs={};
+  await Promise.all(all.map(async g=>{ const cs=coverSrc(g); let im=cs?await loadImg(cs.src):null; if(!im && cs?.fb) im=await loadImg(cs.fb); imgs[g.id]=im; }));
+  let y=HEAD;
+  rows.forEach((r,ri)=>{
+    const h=rowH[ri];
+    x.fillStyle='#161920'; x.fillRect(PAD,y,W-PAD*2,h);
+    x.fillStyle=r.c; x.fillRect(PAD,y,LBL,h);
+    x.fillStyle='#16181d'; x.font='700 48px "Chakra Petch", system-ui, sans-serif'; x.textAlign='center'; x.textBaseline='middle';
+    x.fillText(r.t, PAD+LBL/2, y+h/2); x.textAlign='left'; x.textBaseline='alphabetic';
+    r.gs.forEach((g,i)=>{
+      const col=i%per, line=Math.floor(i/per), X=PAD+LBL+GAP+col*(CW+GAP), Y=y+GAP+line*(CH+GAP);
+      x.save(); roundRect(x,X,Y,CW,CH,6); x.clip();
+      const im=imgs[g.id];
+      if(im){ const s=Math.max(CW/im.naturalWidth,CH/im.naturalHeight), w=im.naturalWidth*s, hh=im.naturalHeight*s; x.drawImage(im,X+(CW-w)/2,Y+(CH-hh)/2,w,hh); }
+      else { const hu=hue(g.title), gr=x.createLinearGradient(X,Y,X,Y+CH); gr.addColorStop(0,`hsl(${hu} 58% 44%)`); gr.addColorStop(1,`hsl(${hu+30} 62% 18%)`); x.fillStyle=gr; x.fillRect(X,Y,CW,CH);
+        x.fillStyle='#fff'; x.font='700 13px "Chakra Petch", system-ui, sans-serif';
+        const words=g.title.split(/\s+/); let line2='', ly=Y+CH-10; const lines=[];
+        const fit=w=>{ const out=[]; let cur=''; for(const ch of w){ if(x.measureText(cur+ch).width>CW-12){ out.push(cur); cur=ch; } else cur+=ch; } if(cur) out.push(cur); return out; };
+        words.flatMap(fit).forEach(w=>{ const t=line2?line2+' '+w:w; if(x.measureText(t).width>CW-12){ if(line2) lines.push(line2); line2=w; } else line2=t; }); if(line2) lines.push(line2);
+        lines.slice(-4).reverse().forEach((t,k)=>x.fillText(t,X+6,ly-k*15)); }
+      x.restore();
+    });
+    y+=h+6;
+  });
+  x.fillStyle='#7D95FF'; x.font='600 22px "Chakra Petch", system-ui, sans-serif'; x.fillText(location.host||'Save File', PAD, H-22);
+  x.fillStyle='#737988'; x.font='500 16px "Figtree", system-ui, sans-serif'; x.textAlign='right'; x.fillText('Made with Save File', W-PAD, H-22); x.textAlign='left';
+  let blob; try{ blob=await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('blob')),'image/png')); }catch(_){ toast('Could not build the image. Try again in a moment.'); return; }
+  const file=new File([blob],'tier-list.png',{type:'image/png'});
+  if(navigator.canShare?.({files:[file]}) && matchMedia('(pointer:coarse)').matches){
+    try{ await navigator.share({files:[file], title:'My tier list'}); return; }catch(e){ if(e?.name==='AbortError') return; }
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tier-list.png'; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },800); toast('Saved tier-list.png');
+}
 /* ============ boot ============ */
 render();
 (async()=>{
