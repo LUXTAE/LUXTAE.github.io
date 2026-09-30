@@ -371,6 +371,7 @@ a.plink:hover{text-decoration:underline}
 .yir-covers .cv-title,.yir-covers .cv-plat{font-size:10px}
 .yir-note{margin:0;font-size:12px;color:var(--faint)}
 @media (max-width:760px){ .yir-grid{grid-template-columns:1fr} }
+.tag.genre{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -422,7 +423,7 @@ const DEMO = !sb;
 const S = {
   games:[], profile:{name:'',bio:''}, session:null, preview:false, loaded:false, loadErr:false,
   tab: (TABS.some(t=>'#'+t.k===location.hash) ? location.hash.slice(1) : 'profile'),
-  lib:{shelf:'all', q:'', sort:'updated', tag:'', plat:''},
+  lib:{shelf:'all', q:'', sort:'updated', tag:'', plat:'', genre:''},
   next:{budget:'any', plat:''}, pickId:null,
 };
 try{ const s=JSON.parse(localStorage.getItem('sf.lib')||'null'); if(s) Object.assign(S.lib,s,{q:''}); }catch(e){}
@@ -591,7 +592,8 @@ function libFiltered(){
     if(!['all','played'].includes(L.shelf) && g.status!==L.shelf) return false;
     if(L.tag && !(g.tags||[]).includes(L.tag)) return false;
     if(L.plat && g.platform!==L.plat) return false;
-    if(q && !(g.title.toLowerCase().includes(q) || (g.tags||[]).some(t=>t.toLowerCase().includes(q)))) return false;
+    if(L.genre && !(g.genres||[]).includes(L.genre)) return false;
+    if(q && !(g.title.toLowerCase().includes(q) || (g.tags||[]).some(t=>t.toLowerCase().includes(q)) || (g.genres||[]).some(t=>t.toLowerCase().includes(q)) || String(g.developer||'').toLowerCase().includes(q))) return false;
     return true;
   });
   const sorts={updated:(a,b)=>(b.updatedAt||0)-(a.updatedAt||0), title:(a,b)=>a.title.localeCompare(b.title), rating:(a,b)=>(+b.rating||-1)-(+a.rating||-1), hours:(a,b)=>totalHours(b)-totalHours(a)};
@@ -603,12 +605,15 @@ function viewLibrary(){
   const shelves=[['all','All'],['playing','Playing'],['backlog','Backlog'],['wishlist','Wishlist'],['played','Played']];
   const tags=[...new Set(VG().flatMap(g=>g.tags||[]))].sort();
   const plats=[...new Set(VG().map(g=>g.platform).filter(Boolean))].sort();
+  const gcount={}; VG().forEach(g=>(g.genres||[]).forEach(x=>gcount[x]=(gcount[x]||0)+1));
+  const genres=Object.entries(gcount).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
   const G=libFiltered(); const shown=G.slice(0, S.libLimit||120);
   return `<section>
     <div class="chips" role="group" aria-label="Shelves">${shelves.map(([k,l])=>`<button class="chip" data-shelf="${k}" aria-pressed="${S.lib.shelf===k}">${l}<span class="n">${cnt(k)}</span></button>`).join('')}</div>
     <div class="toolbar">
       <input id="libq" class="input search" type="search" placeholder="Search titles or lists" value="${esc(S.lib.q)}" aria-label="Search library">
       <select id="libplat" class="input" aria-label="Platform"><option value="">All platforms</option>${plats.map(p=>`<option ${S.lib.plat===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
+      ${genres.length?`<select id="libgenre" class="input" aria-label="Genre"><option value="">All genres</option>${genres.map(t=>`<option ${S.lib.genre===t?'selected':''}>${esc(t)}</option>`).join('')}</select>`:''}
       ${tags.length?`<select id="libtag" class="input" aria-label="List"><option value="">All lists</option>${tags.map(t=>`<option ${S.lib.tag===t?'selected':''}>${esc(t)}</option>`).join('')}</select>`:''}
       <select id="libsort" class="input" aria-label="Sort">${[['updated','Recently updated'],['rating','Highest rated'],['hours','Most played'],['title','A–Z']].map(([k,l])=>`<option value="${k}" ${S.lib.sort===k?'selected':''}>${l}</option>`).join('')}</select>
       ${canWrite()?`<button class="btn sm ${S.selMode?'primary':''}" data-act="selmode">${S.selMode?'Done selecting':'Select'}</button>`:''}
@@ -768,6 +773,17 @@ function yearReview(G){
     <p class="yir-note">Hours are lifetime totals from Steam; the year counts games you played, started or finished in ${y}.</p>
   </section>`;
 }
+function genreBlock(G){
+  const hrs={}, cnt={}, rat={};
+  G.forEach(g=>(g.genres||[]).forEach(x=>{ hrs[x]=(hrs[x]||0)+totalHours(g); cnt[x]=(cnt[x]||0)+1; if(+g.rating){ (rat[x]=rat[x]||[]).push(+g.rating); } }));
+  const names=Object.keys(cnt); if(!names.length) return '';
+  const byH=names.map(n=>[n,hrs[n]]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const byR=names.filter(n=>(rat[n]||[]).length>=2).map(n=>[n, rat[n].reduce((a,b)=>a+b,0)/rat[n].length/2]).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  return `<section class="two">
+    <div class="panel"><h3>Genres by hours played</h3><div class="bars">${byH.length?barRows(byH,fmtH):'<span style="color:var(--muted)">No hours yet.</span>'}</div></div>
+    <div class="panel"><h3>Best-rated genres</h3><div class="bars">${byR.length?barRows(byR,v=>v.toFixed(1)+'★'):'<span style="color:var(--muted)">Rate at least two games in a genre to see this.</span>'}</div></div>
+  </section>`;
+}
 function viewStats(){
   if(!VG().length) return emptyAll();
   const st=stats(), G=VG();
@@ -790,6 +806,7 @@ function viewStats(){
       <div class="panel"><h3>Rating spread</h3><div class="hist">${hist.map(n=>`<div class="hist-col"><span class="hist-n">${n||''}</span><div class="hist-bar" style="height:${n/hmax*100}%"></div></div>`).join('')}</div>
         <div class="hist-x">${hist.map((_,i)=>`<span>${(i+1)/2}</span>`).join('')}</div></div>
     </section>
+    ${genreBlock(G)}
     <section class="two">
       <div class="panel"><h3>Hours by platform</h3><div class="bars">${barRows(Object.entries(byPlat).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]),fmtH)||'<span style="color:var(--muted)">Log hours to see this.</span>'}</div></div>
       <div class="panel"><h3>Most played</h3><div class="bars">${byGame.length?barRows(byGame,fmtH):'<span style="color:var(--muted)">Log hours to see this.</span>'}</div></div>
@@ -856,7 +873,8 @@ function detail(id){
         <div class="card-meta">${g.tier?`<span class="tier-badge" style="--tc:${(TIERS.find(t=>t[0]===g.tier)||[])[1]||'#ccc'}" title="${esc(g.tier)} tier">${esc(g.tier)}</span>`:''}${pill(g.status)}${canWrite()
           ?`<span class="rater" role="group" aria-label="Rate ${esc(g.title)}">${Array.from({length:10},(_,i)=>i+1).map(v=>`<button class="half ${v%2?'l':'r'} ${v<=(+g.rating||0)?'on':''}" data-rate="${v}" data-g="${esc(g.id)}" aria-label="${v/2} stars"><span>★</span></button>`).join('')}</span><span class="rate-val">${g.rating?(+g.rating/2).toFixed(1):'Tap to rate'}</span>`
           :(g.rating!=null&&g.rating!==''?stars(g.rating,true)+`<span class="num" style="color:var(--muted)">${(+g.rating/2).toFixed(1)}</span>`:'')}</div>
-        <div class="kv">${g.platform?`<span>Platform <b>${esc(g.platform)}</b></span>`:''}${g.year?`<span>Released <b class="num">${esc(g.year)}</b></span>`:''}${g.started?`<span>Started <b>${esc(fmtDate(g.started))}</b></span>`:''}${g.finished?`<span>Finished <b>${esc(fmtDate(g.finished))}</b></span>`:''}${g.lastPlayed?`<span>Last played <b>${esc(fmtDate(g.lastPlayed))}</b></span>`:''}</div>
+        <div class="kv">${g.platform?`<span>Platform <b>${esc(g.platform)}</b></span>`:''}${g.year?`<span>Released <b class="num">${esc(g.year)}</b></span>`:''}${g.started?`<span>Started <b>${esc(fmtDate(g.started))}</b></span>`:''}${g.finished?`<span>Finished <b>${esc(fmtDate(g.finished))}</b></span>`:''}${g.lastPlayed?`<span>Last played <b>${esc(fmtDate(g.lastPlayed))}</b></span>`:''}${g.developer?`<span>By <b>${esc(g.developer)}</b></span>`:''}</div>
+        ${(g.genres||[]).length?`<div class="card-meta">${g.genres.map(t=>`<span class="tag genre">${esc(t)}</span>`).join('')}</div>`:''}
         ${(g.tags||[]).length?`<div class="card-meta">${g.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
         <div class="links">${g.steam?`<a href="https://store.steampowered.com/app/${esc(g.steam)}" target="_blank" rel="noopener">Steam ↗</a>`:''}<a href="https://howlongtobeat.com/?q=${q}" target="_blank" rel="noopener">HowLongToBeat ↗</a><a href="https://backloggd.com/search/games/${q}" target="_blank" rel="noopener">Backloggd ↗</a></div>
       </div></div>
@@ -1168,10 +1186,11 @@ document.addEventListener('change', e=>{
   if(id==='bulkstatus' && e.target.value){ const st=e.target.value; const lbl=SLABEL[st]; bulkApply({status:st}, `Set {n} game{s} to ${lbl}`); return; }
   if(id==='libsort'){ S.lib.sort=e.target.value; persistLib(); render(); }
   if(id==='libtag'){ S.lib.tag=e.target.value; persistLib(); render(); }
+  if(id==='libgenre'){ S.lib.genre=e.target.value; persistLib(); render(); }
   if(id==='libplat'){ S.lib.plat=e.target.value; persistLib(); render(); }
   if(id==='nextplat'){ S.next.plat=e.target.value; S.pickId=null; render(); }
 });
-function persistLib(){ try{ localStorage.setItem('sf.lib', JSON.stringify({shelf:S.lib.shelf,sort:S.lib.sort,tag:S.lib.tag,plat:S.lib.plat})); }catch(_){} }
+function persistLib(){ try{ localStorage.setItem('sf.lib', JSON.stringify({shelf:S.lib.shelf,sort:S.lib.sort,tag:S.lib.tag,plat:S.lib.plat,genre:S.lib.genre||''})); }catch(_){} }
 function roll(){
   const pool=nextPool(); if(!pool.length) return;
   let c=pool.filter(g=>g.id!==S.pickId); if(!c.length) c=pool;
