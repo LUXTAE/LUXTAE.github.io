@@ -311,6 +311,13 @@ textarea.input{resize:vertical;min-height:90px;line-height:1.5}
 .tier-items.pool .tier-item{width:68px}
 .tier-badge{display:inline-grid;place-items:center;min-width:26px;height:22px;padding:0 6px;border-radius:5px;background:var(--tc);color:#16181d;font:700 13px var(--f-display)}
 @media (max-width:520px){ .tier-row{grid-template-columns:44px 1fr;min-height:78px} .tier-label{font-size:20px} .tier-item{width:48px} .tier-items.pool .tier-item{width:56px} }
+.bulkbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 96px);z-index:10;box-shadow:var(--shadow)}
+.grid.selecting .card .cover{outline:2px solid transparent;outline-offset:2px;transition:outline-color .1s}
+.card.picked .cover{outline:3px solid var(--accent)!important}
+.card.picked .cover::after{content:"✓";position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-size:14px;z-index:2}
+.card{position:relative}
+.card.is-hidden .cover{opacity:.45}
+.hid-tag{position:absolute;top:34px;left:8px;z-index:2;font:600 10px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;background:var(--ink);color:var(--bg);padding:2px 6px;border-radius:4px}
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -367,6 +374,7 @@ const S = {
 };
 try{ const s=JSON.parse(localStorage.getItem('sf.lib')||'null'); if(s) Object.assign(S.lib,s,{q:''}); }catch(e){}
 const isOwner = () => DEMO || !!S.session;
+const VG = () => (isOwner() && !S.preview) ? S.games : S.games.filter(g=>!g.hidden);
 const canWrite = () => isOwner() && !S.preview;
 
 const $ = (s,r=document)=>r.querySelector(s);
@@ -471,7 +479,7 @@ function emptyAll(){
     : `<div class="panel empty"><strong>Nothing logged yet</strong><span>Check back soon.</span></div>`;
 }
 function stats(){
-  const G=S.games, rated=G.filter(g=>g.rating!=null&&g.rating!=='');
+  const G=VG(), rated=G.filter(g=>g.rating!=null&&g.rating!=='');
   return {
     played:G.filter(g=>PLAYED.includes(g.status)).length,
     finished:G.filter(g=>g.status==='beaten'||g.status==='completed').length,
@@ -483,10 +491,11 @@ function stats(){
   };
 }
 function gameCard(g){
-  return `<button class="card" data-open="${esc(g.id)}">${cover(g)}<span class="card-name">${esc(g.title)}</span><span class="card-meta">${g.rating!=null&&g.rating!==''?stars(g.rating):pill(g.status)}</span></button>`;
+  const sel=S.selMode&&S.sel?.has(g.id);
+  return `<button class="card${sel?' picked':''}${g.hidden?' is-hidden':''}" data-open="${esc(g.id)}" ${S.selMode?`aria-pressed="${!!sel}"`:''}>${cover(g)}${g.hidden&&isOwner()?'<span class="hid-tag">Hidden</span>':''}<span class="card-name">${esc(g.title)}</span><span class="card-meta">${g.rating!=null&&g.rating!==''?stars(g.rating):pill(g.status)}</span></button>`;
 }
 function viewProfile(){
-  const st=stats(), G=S.games;
+  const st=stats(), G=VG();
   const initial=(S.profile.name||'?').trim().charAt(0).toUpperCase()||'?';
   const hero=`<section class="hero"><div class="avatar">${esc(initial)}</div><div>
       <h1>${esc(S.profile.name||'My Save File')}</h1>
@@ -520,7 +529,7 @@ function reviewCard(g){
 }
 function libFiltered(){
   const L=S.lib, q=L.q.trim().toLowerCase();
-  const G=S.games.filter(g=>{
+  const G=VG().filter(g=>{
     if(L.shelf==='played' && !PLAYED.includes(g.status)) return false;
     if(!['all','played'].includes(L.shelf) && g.status!==L.shelf) return false;
     if(L.tag && !(g.tags||[]).includes(L.tag)) return false;
@@ -532,11 +541,11 @@ function libFiltered(){
   return G.sort(sorts[L.sort]||sorts.updated);
 }
 function viewLibrary(){
-  if(!S.games.length) return emptyAll();
-  const cnt=k=>k==='all'?S.games.length:k==='played'?S.games.filter(g=>PLAYED.includes(g.status)).length:S.games.filter(g=>g.status===k).length;
+  if(!VG().length) return emptyAll();
+  const cnt=k=>k==='all'?VG().length:k==='played'?VG().filter(g=>PLAYED.includes(g.status)).length:VG().filter(g=>g.status===k).length;
   const shelves=[['all','All'],['playing','Playing'],['backlog','Backlog'],['wishlist','Wishlist'],['played','Played']];
-  const tags=[...new Set(S.games.flatMap(g=>g.tags||[]))].sort();
-  const plats=[...new Set(S.games.map(g=>g.platform).filter(Boolean))].sort();
+  const tags=[...new Set(VG().flatMap(g=>g.tags||[]))].sort();
+  const plats=[...new Set(VG().map(g=>g.platform).filter(Boolean))].sort();
   const G=libFiltered(); const shown=G.slice(0, S.libLimit||120);
   return `<section>
     <div class="chips" role="group" aria-label="Shelves">${shelves.map(([k,l])=>`<button class="chip" data-shelf="${k}" aria-pressed="${S.lib.shelf===k}">${l}<span class="n">${cnt(k)}</span></button>`).join('')}</div>
@@ -545,12 +554,33 @@ function viewLibrary(){
       <select id="libplat" class="input" aria-label="Platform"><option value="">All platforms</option>${plats.map(p=>`<option ${S.lib.plat===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
       ${tags.length?`<select id="libtag" class="input" aria-label="List"><option value="">All lists</option>${tags.map(t=>`<option ${S.lib.tag===t?'selected':''}>${esc(t)}</option>`).join('')}</select>`:''}
       <select id="libsort" class="input" aria-label="Sort">${[['updated','Recently updated'],['rating','Highest rated'],['hours','Most played'],['title','A–Z']].map(([k,l])=>`<option value="${k}" ${S.lib.sort===k?'selected':''}>${l}</option>`).join('')}</select>
+      ${canWrite()?`<button class="btn sm ${S.selMode?'primary':''}" data-act="selmode">${S.selMode?'Done selecting':'Select'}</button>`:''}
     </div>
-    ${G.length?`<div class="grid">${shown.map(gameCard).join('')}</div>${G.length>shown.length?`<button class="btn" data-act="more" style="align-self:center">Show more (${G.length-shown.length})</button>`:''}`:`<div class="panel empty"><strong>No games match</strong><span>Try another shelf or clear the search.</span></div>`}
+    ${S.selMode&&canWrite()?bulkBar(G):''}
+    ${G.length?`<div class="grid${S.selMode?' selecting':''}">${shown.map(gameCard).join('')}</div>${G.length>shown.length?`<button class="btn" data-act="more" style="align-self:center">Show more (${G.length-shown.length})</button>`:''}`:`<div class="panel empty"><strong>No games match</strong><span>Try another shelf or clear the search.</span></div>`}
   </section>`;
 }
+function bulkBar(G){
+  const n=S.sel?.size||0;
+  return `<div class="bulkbar panel">
+    <span><b class="num">${n}</b> selected</span>
+    <button class="btn ghost sm" data-act="selall">Select all ${G.length} shown</button>
+    <button class="btn ghost sm" data-act="seltry">Select tryouts under 1h</button>
+    ${n?`<button class="btn ghost sm" data-act="selnone">Clear</button>`:''}
+    <span class="spacer"></span>
+    <select id="bulkstatus" class="input" aria-label="Set status for selected" ${n?'':'disabled'}><option value="">Set status…</option>${STATUSES.map(s=>`<option value="${s.k}">${s.l}</option>`).join('')}</select>
+    <button class="btn sm" data-act="bulkhide" ${n?'':'disabled'}>Hide from visitors</button>
+    <button class="btn sm" data-act="bulkshow" ${n?'':'disabled'}>Unhide</button>
+  </div>`;
+}
+async function bulkApply(patch, msg){
+  const ids=[...(S.sel||[])]; if(!ids.length) return;
+  const now=Date.now();
+  const ok=await commit(()=>{ const touched=[]; S.games=S.games.map(g=>{ if(!S.sel.has(g.id)) return g; const ng={...g,...patch,updatedAt:now}; touched.push(ng); return ng; }); return ()=>writeGames(touched); }, msg.replace('{n}',ids.length).replace('{s}',ids.length===1?'':'s'));
+  if(ok){ S.sel=new Set(); render(); }
+}
 function allSessions(){
-  const out=[]; S.games.forEach(g=>(g.sessions||[]).forEach((s,i)=>out.push({g,s,i})));
+  const out=[]; VG().forEach(g=>(g.sessions||[]).forEach((s,i)=>out.push({g,s,i})));
   return out.sort((a,b)=>(b.s.d||'').localeCompare(a.s.d||'')||(b.s.t||0)-(a.s.t||0));
 }
 function sessionRow({g,s}){
@@ -559,20 +589,20 @@ function sessionRow({g,s}){
 function viewJournal(){
   const all=allSessions();
   const head=`<div class="sec-head"><h2>Play journal</h2><span class="hint">Every session, newest first. Notes remember where you left off.</span></div>`;
-  if(!all.length) return `<section>${head}<div class="panel empty"><strong>No sessions yet</strong><span>${canWrite()?'Log a session after you play to track hours and leave yourself a note.':'Sessions will show up here.'}</span>${canWrite()&&S.games.length?'<button class="btn primary" data-act="log">Log a session</button>':''}</div></section>`;
+  if(!all.length) return `<section>${head}<div class="panel empty"><strong>No sessions yet</strong><span>${canWrite()?'Log a session after you play to track hours and leave yourself a note.':'Sessions will show up here.'}</span>${canWrite()&&VG().length?'<button class="btn primary" data-act="log">Log a session</button>':''}</div></section>`;
   const groups={}; all.forEach(x=>{ const k=(x.s.d||'').slice(0,7); (groups[k]=groups[k]||[]).push(x); });
   return `<section>${head}<div class="panel">${Object.entries(groups).map(([k,xs])=>{ const d=new Date(k+'-15T12:00:00'); const h=xs.reduce((a,x)=>a+(+x.s.h||0),0);
     return `<div class="month">${esc(isNaN(d)?'Undated':d.toLocaleDateString(undefined,{month:'long',year:'numeric'}))} <span class="num" style="font-weight:400">· ${fmtH(h)}</span></div><div class="rows">${xs.map(sessionRow).join('')}</div>`; }).join('')}</div></section>`;
 }
 function nextPool(){
   const {budget,plat}=S.next;
-  return S.games.filter(g=>g.status==='backlog').filter(g=>{ const m=+g.hltb?.main||0;
+  return VG().filter(g=>g.status==='backlog').filter(g=>{ const m=+g.hltb?.main||0;
     if(plat && g.platform!==plat) return false;
     if(budget==='short') return m>0&&m<10; if(budget==='mid') return m>=10&&m<=30; if(budget==='long') return m>30; return true;
   }).sort((a,b)=>(+b.priority||2)-(+a.priority||2)||(+a.hltb?.main||999)-(+b.hltb?.main||999));
 }
 function viewNext(){
-  const back=S.games.filter(g=>g.status==='backlog');
+  const back=VG().filter(g=>g.status==='backlog');
   const head=`<div class="sec-head"><h2>What should I play next?</h2><span class="hint">Filter the backlog by how much time you have, then let it pick.</span></div>`;
   if(!back.length) return `<section>${head}<div class="panel empty"><strong>Backlog is empty</strong><span>${canWrite()?'Games with the Backlog status show up here.':'Nothing waiting in the backlog.'}</span></div></section>`;
   const pool=nextPool(); const pick=pool.find(g=>g.id===S.pickId);
@@ -607,7 +637,7 @@ function tierBoard(rows, editable){
     </div>`).join('')}</div>`;
 }
 function viewTiers(){
-  const G=S.games, rows=tierRows(G), any=rows.some(r=>r.gs.length);
+  const G=VG(), rows=tierRows(G), any=rows.some(r=>r.gs.length);
   if(!canWrite()){
     return any ? `<section><div class="sec-head"><h2>Tier list</h2><span class="hint">Every game I've ranked, best to worst</span></div>${tierBoard(rows.filter(r=>r.gs.length),false)}</section>`
       : `<div class="panel empty"><strong>No tier list yet</strong><span>Check back soon.</span></div>`;
@@ -647,8 +677,8 @@ document.addEventListener('drop', e=>{ const z=e.target.closest?.('[data-tierdro
   const id=e.dataTransfer.getData('text/plain'); if(!id) return; const before=e.target.closest('[data-tg]')?.dataset.tg; placeTier(id, z.dataset.tierdrop, before&&before!==id?before:null); });
 
 function viewStats(){
-  if(!S.games.length) return emptyAll();
-  const st=stats(), G=S.games;
+  if(!VG().length) return emptyAll();
+  const st=stats(), G=VG();
   const hist=Array.from({length:10},(_,i)=>G.filter(g=>+g.rating===i+1).length); const hmax=Math.max(1,...hist);
   const byPlat={}; G.forEach(g=>{const p=g.platform||'Unknown'; byPlat[p]=(byPlat[p]||0)+totalHours(g);});
   const byGame=G.map(g=>[g.title,totalHours(g)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,10);
@@ -780,6 +810,7 @@ function editForm(id){
       <div class="field"><label for="f-finished">Finished</label><input class="input" type="date" id="f-finished" name="finished" value="${esc(g.finished||'')}"></div>
       <div class="field"><label for="f-top">Favorite slot</label><select class="input" id="f-top" name="top"><option value="0">Not a favorite</option>${[1,2,3,4].map(n=>{const o=S.games.find(x=>+x.top===n&&x.id!==id);return `<option value="${n}" ${+g.top===n?'selected':''}>Slot ${n}${o?' (replaces '+esc(o.title)+')':''}</option>`}).join('')}</select></div>
       <div class="field"><label for="f-priority">Backlog priority</label><select class="input" id="f-priority" name="priority">${[[3,'High'],[2,'Normal'],[1,'Low']].map(([v,l])=>`<option value="${v}" ${(+g.priority||2)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+      <label class="check field full"><input type="checkbox" id="f-hidden" name="hidden" ${g.hidden?'checked':''}> Hide this game from visitors</label>
       <div class="field full"><label for="f-tags">Lists</label><input class="input" id="f-tags" name="tags" value="${esc((g.tags||[]).join(', '))}" placeholder="co-op, comfort games, GOTY 2026"></div>
     </div><p id="formErr" style="color:var(--bad);margin:0" hidden></p></div>
     <div class="dlg-foot"><button type="submit" class="btn primary" id="saveBtn">${id?'Save changes':'Add game'}</button><span style="color:var(--muted);font-size:13px">Only the title is required.</span></div>
@@ -823,7 +854,7 @@ async function submitGame(id, fd, img, steam){
     started:fd.get('started')||'', finished:fd.get('finished')||'',
     top:+fd.get('top')||0, priority:+fd.get('priority')||2,
     tags:(fd.get('tags')||'').split(',').map(t=>t.trim()).filter(Boolean).slice(0,20),
-    sessions:prev?.sessions||[], img:img||'', steam:steam||'',
+    sessions:prev?.sessions||[], img:img||'', steam:steam||'', hidden:fd.get('hidden')==='on',
     createdAt:prev?.createdAt||Date.now(), updatedAt:Date.now() };
   if(!g.finished && (status==='beaten'||status==='completed') && !(prev&&(prev.status==='beaten'||prev.status==='completed'))) g.finished=today();
   if(!g.started && status==='playing') g.started=today();
@@ -936,6 +967,7 @@ document.addEventListener('click', async e=>{
   const t=e.target.closest('button'); if(!t) return; const d=t.dataset;
   if(d.tab){ S.tab=d.tab; S.libLimit=120; try{history.replaceState(null,'','#'+d.tab);}catch(_){} render(); window.scrollTo({top:0}); return; }
   if(d.close!==undefined){ closeDlg(); return; }
+  if(d.open && S.selMode && canWrite() && t.classList.contains('card') && S.tab==='library'){ S.sel=S.sel||new Set(); S.sel.has(d.open)?S.sel.delete(d.open):S.sel.add(d.open); render(); return; }
   if(d.open){ detail(d.open); return; }
   if(d.edit){ editForm(d.edit); return; }
   if(d.logfor){ logForm(d.logfor); return; }
@@ -958,6 +990,12 @@ document.addEventListener('click', async e=>{
   else if(act==='tools') toolsForm();
   else if(act==='export') exportData();
   else if(act==='more'){ S.libLimit=(S.libLimit||120)+120; render(); }
+  else if(act==='selmode'){ S.selMode=!S.selMode; S.sel=new Set(); render(); }
+  else if(act==='selall'){ S.sel=new Set(libFiltered().map(g=>g.id)); render(); }
+  else if(act==='seltry'){ S.sel=new Set(libFiltered().filter(g=>{ const h=totalHours(g); return h>0 && h<1 && (g.rating==null||g.rating==='') && !g.review; }).map(g=>g.id)); render(); toast(`${S.sel.size} tryout${S.sel.size===1?'':'s'} selected`); }
+  else if(act==='selnone'){ S.sel=new Set(); render(); }
+  else if(act==='bulkhide'){ await bulkApply({hidden:true}, 'Hid {n} game{s} from visitors'); }
+  else if(act==='bulkshow'){ await bulkApply({hidden:false}, 'Unhid {n} game{s}'); }
   else if(act==='tiermore'){ S.tierLimit=(S.tierLimit||48)+48; render(); }
   else if(act==='rate') rateMode();
   else if(act==='rskip'){ RATE.i++; rateStep(); }
@@ -974,6 +1012,7 @@ document.addEventListener('input', e=>{
 });
 document.addEventListener('change', e=>{
   const id=e.target.id;
+  if(id==='bulkstatus' && e.target.value){ const st=e.target.value; const lbl=SLABEL[st]; bulkApply({status:st}, `Set {n} game{s} to ${lbl}`); return; }
   if(id==='libsort'){ S.lib.sort=e.target.value; persistLib(); render(); }
   if(id==='libtag'){ S.lib.tag=e.target.value; persistLib(); render(); }
   if(id==='libplat'){ S.lib.plat=e.target.value; persistLib(); render(); }
