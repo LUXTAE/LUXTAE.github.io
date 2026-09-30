@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Save File</title>
+<meta name="description" content="Games I've played, rated and reviewed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+
+/* Layout: a personal game log. Sticky HUD header with tabs, one content column (max 1080px), cover-art grids generated from each title. */
+:root{
+  --bg:#EDEFF3; --surface:#FFFFFF; --surface-2:#F5F6F9; --line:#DADDE5;
+  --ink:#15171C; --muted:#5E6371; --faint:#8C91A0;
+  --accent:#2E57F0; --accent-ink:#FFFFFF; --accent-soft:#E3E9FE;
+  --star:#E89A00; --star-off:#D3D6DE;
+  --ok:#1C8A55; --warn:#B86E00; --bad:#C23A3A; --info:#2E57F0; --gold:#9A6B00;
+  --shadow:0 1px 2px rgba(20,24,40,.06),0 8px 24px rgba(20,24,40,.06);
+  --f-display:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1015; --surface:#161920; --surface-2:#1C2029; --line:#2A2F3B;
+  --ink:#E9EBF1; --muted:#A3A8B6; --faint:#737988;
+  --accent:#7D95FF; --accent-ink:#0E1015; --accent-soft:#1F2744;
+  --star:#FFC247; --star-off:#383D4A;
+  --ok:#4CC98A; --warn:#F0A43A; --bad:#F07272; --info:#7D95FF; --gold:#FFC247;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E1015; --surface:#161920; --surface-2:#1C2029; --line:#2A2F3B;
+  --ink:#E9EBF1; --muted:#A3A8B6; --faint:#737988;
+  --accent:#7D95FF; --accent-ink:#0E1015; --accent-soft:#1F2744;
+  --star:#FFC247; --star-off:#383D4A;
+  --ok:#4CC98A; --warn:#F0A43A; --bad:#F07272; --info:#7D95FF; --gold:#FFC247;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:.01em}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+
+/* header */
+.hud{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.hud-in{max-width:1080px;margin:0 auto;padding:10px 16px 0;display:flex;flex-direction:column;gap:8px}
+.hud-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-mark{width:30px;height:30px;border-radius:7px;background:var(--ink);color:var(--bg);display:grid;place-items:center;font:700 13px var(--f-display);flex:none}
+.brand-name{font:700 19px var(--f-display);white-space:nowrap}
+.brand-owner{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spacer{flex:1}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin:0 -4px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:none;padding:9px 12px 11px;font:600 14px var(--f-display);letter-spacing:.03em;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tab[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab:hover{color:var(--ink)}
+
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--faint)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--ink);background:var(--surface-2)}
+.btn.danger{color:var(--bad)}
+.btn.sm{padding:5px 9px;font-size:13px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+main{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:22px 64px;display:flex;flex-direction:column;gap:28px}
+section{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sec-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sec-head h2{font-size:17px}
+.sec-head .hint{color:var(--muted);font-size:13px}
+
+.banner{background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:var(--r);padding:10px 14px;font-size:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* profile hero */
+.hero{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.avatar{width:76px;height:76px;border-radius:16px;display:grid;place-items:center;font:700 32px var(--f-display);color:#fff;background:linear-gradient(145deg,var(--accent),color-mix(in srgb,var(--accent) 40%,#000))}
+.hero h1{font-size:30px;line-height:1.1}
+.hero p{margin:4px 0 0;color:var(--muted);max-width:60ch}
+.statline{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.stat{padding:12px 14px;border-left:1px solid var(--line);min-width:0}
+.stat:first-child{border-left:0}
+.stat b{display:block;font:500 22px var(--f-mono);font-variant-numeric:tabular-nums;line-height:1.2}
+.stat span{font-size:12px;color:var(--muted)}
+
+/* covers */
+.cover{--h:220;position:relative;aspect-ratio:3/4;max-width:100%;border-radius:8px;overflow:hidden;
+  background:
+   radial-gradient(120% 70% at 100% 0%,hsl(calc(var(--h) + 50) 85% 62% / .55),transparent 60%),
+   linear-gradient(165deg,hsl(var(--h) 58% 44%),hsl(calc(var(--h) + 30) 62% 18%));
+  color:#fff;display:flex;flex-direction:column;justify-content:flex-end;padding:9px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.cover::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 4px);pointer-events:none}
+.cv-plat{position:absolute;top:8px;left:8px;font:500 10px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;background:rgba(0,0,0,.35);padding:2px 6px;border-radius:4px}
+.cv-title{font:700 15px/1.1 var(--f-display);text-wrap:balance;text-shadow:0 1px 8px rgba(0,0,0,.35);overflow-wrap:anywhere}
+.cv-rank{position:absolute;top:8px;right:8px;font:700 12px var(--f-display);background:rgba(0,0,0,.4);width:22px;height:22px;border-radius:50%;display:grid;place-items:center}
+.cover>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cover.has-img::before{display:none}
+.cover.has-img .cv-title{display:none}
+.cv-plat,.cv-rank{z-index:1}
+.cover-pick{display:grid;grid-template-columns:96px 1fr;gap:14px;align-items:center;border:1.5px dashed var(--line);border-radius:var(--r);padding:12px;transition:border-color .15s,background .15s}
+.cover-pick.drag{border-color:var(--accent);background:var(--accent-soft)}
+.cover-actions{display:flex;flex-direction:column;gap:8px;align-items:flex-start;min-width:0}
+.cover-actions .hint{font-size:13px;color:var(--muted)}
+.cover-btns{display:flex;gap:6px;flex-wrap:wrap}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.cover-edit{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px}
+.top4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.card{border:0;background:none;padding:0;text-align:left;display:flex;flex-direction:column;gap:6px;min-width:0}
+.card .cover{transition:transform .15s ease}
+.card:hover .cover{transform:translateY(-2px)}
+.card-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:20px}
+.card-name{font-weight:600;font-size:14px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot-empty{aspect-ratio:3/4;border:1.5px dashed var(--line);border-radius:8px;display:grid;place-items:center;color:var(--faint);font-size:13px;text-align:center;padding:8px}
+
+/* stars */
+.stars{position:relative;display:inline-block;font-size:13px;letter-spacing:1px;line-height:1;color:var(--star-off);white-space:nowrap}
+.stars::after{content:"★★★★★";position:absolute;left:0;top:0;width:var(--r,0%);overflow:hidden;color:var(--star)}
+.stars.lg{font-size:22px}
+.rater{display:inline-flex;align-items:center}
+.half{border:0;padding:0;background:none;width:.5em;overflow:hidden;font-size:28px;line-height:1;color:var(--star-off);cursor:pointer}
+.half span{display:inline-block;width:1em}
+.half.r span{margin-left:-.5em}
+.half.on{color:var(--star)}
+.rater:hover .half{color:var(--star)}
+.rater .half:hover ~ .half{color:var(--star-off)}
+.rate-val{font:500 13px var(--f-mono);color:var(--muted);margin-left:8px}
+
+/* pills */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c);white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+.s-playing{--c:var(--info)} .s-backlog{--c:var(--muted)} .s-wishlist{--c:var(--gold)}
+.s-played{--c:var(--faint)} .s-beaten{--c:var(--ok)} .s-completed{--c:var(--ok)} .s-shelved{--c:var(--warn)} .s-abandoned{--c:var(--bad)}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 11px;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip .n{font-family:var(--f-mono);font-weight:500;opacity:.7;margin-left:4px}
+.tag{font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 7px}
+
+/* toolbar */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.input,select.input{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;font-size:14px;min-width:0}
+.search{flex:1;min-width:160px}
+
+/* reviews + activity */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.rows{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;width:100%}
+.row:first-child{border-top:0}
+.row:hover{background:var(--surface-2)}
+.row .cover{padding:0;border-radius:5px}
+.row .cover .cv-plat,.row .cover .cv-title{display:none}
+.row-main{min-width:0}
+.row-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-sub{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.review{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:14px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:var(--r)}
+.review:hover{border-color:var(--faint)}
+.review .cover{padding:0;border-radius:6px}
+.review .cover .cv-title,.review .cover .cv-plat{display:none}
+.review-body{min-width:0;display:flex;flex-direction:column;gap:4px}
+.review-text{margin:0;color:var(--ink);font-size:14px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.spoiler{filter:blur(5px);user-select:none;cursor:pointer}
+
+/* journal */
+.month{font:600 13px var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:14px 14px 6px}
+.j-date{font:500 12px var(--f-mono);color:var(--muted);text-align:right;white-space:nowrap}
+
+/* up next */
+.pick{display:grid;grid-template-columns:150px 1fr;gap:20px;padding:18px;align-items:center}
+.pick h3{font-size:24px}
+.pick-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:14px;margin-top:6px}
+.rolling .cover{animation:roll .5s ease}
+@keyframes roll{0%{transform:rotateY(0) scale(.96)}50%{transform:rotateY(90deg) scale(.96)}100%{transform:rotateY(0) scale(1)}}
+.prio{font:500 12px var(--f-mono);color:var(--gold)}
+
+/* stats */
+.bars{display:flex;flex-direction:column;gap:8px;padding:16px}
+.bar-row{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;font-size:13px}
+.bar-row .bl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.bar-track{height:10px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;background:var(--accent);border-radius:3px}
+.bar-row .bv{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.hist{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;align-items:end;height:150px;padding:16px 16px 0}
+.hist-col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%}
+.hist-bar{width:100%;background:var(--star);border-radius:3px 3px 0 0;min-height:2px}
+.hist-n{font:500 11px var(--f-mono);color:var(--muted)}
+.hist-x{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;padding:6px 16px 14px;font:500 11px var(--f-mono);color:var(--faint);text-align:center;border-top:1px solid var(--line);margin:0 16px;padding-inline:0}
+.stack{display:flex;height:14px;border-radius:4px;overflow:hidden;margin:16px 16px 10px;background:var(--surface-2)}
+.stack span{background:var(--c)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:0 16px 16px;font-size:13px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.panel h3{font-size:14px;padding:14px 16px 0}
+
+/* empty */
+.empty{padding:28px 18px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:10px;align-items:center}
+.empty strong{color:var(--ink);font-family:var(--f-display);font-size:17px}
+
+/* dialogs */
+dialog{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:14px;padding:0;width:min(640px,calc(100vw - 24px));max-height:calc(100dvh - 24px);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(8,10,16,.55)}
+.dlg{display:flex;flex-direction:column;max-height:calc(100dvh - 26px)}
+.dlg-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dlg-head h2{font-size:18px;flex:1;min-width:0}
+.dlg-body{padding:16px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.dlg-foot{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);flex-wrap:wrap;align-items:center}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field.full{grid-column:1/-1}
+.field label{font-size:12px;font-weight:600;color:var(--muted)}
+.field .input{width:100%}
+textarea.input{resize:vertical;min-height:90px;line-height:1.5}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.check{display:flex;align-items:center;gap:8px;font-size:14px}
+.rate-row{display:flex;align-items:center;gap:12px}
+.rate-row input{flex:1}
+
+.detail{display:grid;grid-template-columns:140px 1fr;gap:18px}
+.detail h2{font-size:24px}
+.kv{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px;color:var(--muted)}
+.kv b{color:var(--ink);font-weight:600}
+.time{display:flex;flex-direction:column;gap:7px}
+.time .bar-row{grid-template-columns:96px 1fr 64px}
+.time .bar-fill.you{background:var(--star)}
+.links{display:flex;gap:8px;flex-wrap:wrap}
+.links a{font-size:13px;color:var(--accent);font-weight:600;text-decoration:none}
+.links a:hover{text-decoration:underline}
+.review-full{white-space:pre-wrap;margin:0;font-size:15px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;z-index:50;box-shadow:var(--shadow)}
+
+@media (max-width:760px){
+  .statline{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .stat:nth-child(4){border-left:0}
+  .stat:nth-child(n+4){border-top:1px solid var(--line)}
+  .reviews,.two{grid-template-columns:1fr}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px}
+  .top4{gap:8px}
+  .top4 .cv-title{font-size:12px}
+}
+@media (max-width:520px){
+  .hero{grid-template-columns:1fr}
+  .avatar{width:56px;height:56px;font-size:24px}
+  .hero h1{font-size:24px}
+  .pick,.detail{grid-template-columns:1fr}
+  .pick .cover,.detail .cover{max-width:140px}
+  .form{grid-template-columns:1fr}
+  .bar-row{grid-template-columns:84px 1fr 48px}
+  .brand-owner{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.cover>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cover.has-img::before{display:none}
+.cover.has-img .cv-title{display:none}
+.cv-plat,.cv-rank{z-index:1}
+.cover-pick{display:grid;grid-template-columns:96px 1fr;gap:14px;align-items:start;border:1.5px dashed var(--line);border-radius:var(--r);padding:12px;transition:border-color .15s,background .15s}
+.cover-pick.drag{border-color:var(--accent);background:var(--accent-soft)}
+.cover-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:0}
+.cover-actions .hint{font-size:13px;color:var(--muted)}
+.cover-btns{display:flex;gap:6px;flex-wrap:wrap}
+.cands{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px}
+.cand{border:2px solid transparent;border-radius:8px;padding:0;background:none;overflow:hidden}
+.cand[aria-pressed="true"]{border-color:var(--accent)}
+.cand .cover{border-radius:6px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.cover-edit{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.rater{display:inline-flex;align-items:center}
+.half{border:0;padding:0;background:none;width:.5em;overflow:hidden;font-size:28px;line-height:1;color:var(--star-off);cursor:pointer}
+.half span{display:inline-block;width:1em}
+.half.r span{margin-left:-.5em}
+.half.on{color:var(--star)}
+.rater:hover .half{color:var(--star)}
+.rater .half:hover ~ .half{color:var(--star-off)}
+.rate-val{font:500 13px var(--f-mono);color:var(--muted);margin-left:8px}
+.banner.warn{background:color-mix(in srgb,var(--warn) 12%,var(--surface));border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
+footer .btn{color:var(--faint)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<header class="hud">
+  <div class="hud-in">
+    <div class="hud-top">
+      <div class="brand"><div class="brand-mark">SF</div><span class="brand-name">Save File</span><span class="brand-owner" id="brandOwner"></span></div>
+      <div class="spacer"></div>
+      <div id="ownerBar" class="toolbar"></div>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+  </div>
+</header>
+<main id="app"></main>
+<footer><span>Made with Save File</span><span class="spacer"></span><span id="footAuth"></span></footer>
+
+<dialog id="dlg"></dialog>
+<div id="toast" class="toast" hidden></div>
+<div id="saving" class="toast" hidden>Saving…</div>
+
+<script>
+/* ============ SETUP: paste your two Supabase values here ============ */
+const CONFIG = {
+  SUPABASE_URL: 'https://oictyjznfvmvbddvxjyx.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pY3R5anpuZnZtdmJkZHZ4anl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3ODU3MDcsImV4cCI6MjEwNjM2MTcwN30.88z5rgLBkyYGElQF3Sb3jZ5KCcnJ7JuhxO93v10Az74', // public key, safe to share
+};
+/* ==================================================================== */
+</script>
+<script>
+(() => {
+const STATUSES = [
+  {k:'playing',l:'Playing'},{k:'backlog',l:'Backlog'},{k:'wishlist',l:'Wishlist'},
+  {k:'played',l:'Played'},{k:'beaten',l:'Beaten'},{k:'completed',l:'Completed 100%'},{k:'shelved',l:'Shelved'},{k:'abandoned',l:'Abandoned'},
+];
+const PLAYED = ['played','beaten','completed','shelved','abandoned'];
+const SLABEL = Object.fromEntries(STATUSES.map(s=>[s.k,s.l]));
+const PLATFORMS = ['PC','PlayStation 5','PlayStation 4','Xbox Series X|S','Xbox One','Nintendo Switch','Nintendo Switch 2','Steam Deck','Mobile','Retro'];
+const TABS = [{k:'profile',l:'Profile'},{k:'library',l:'Library'},{k:'journal',l:'Journal'},{k:'next',l:'Up Next'},{k:'stats',l:'Stats'}];
+const LOCAL_KEY = 'savefile.data.v1';
+
+const sb = (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY) : null;
+const DEMO = !sb;
+
+const S = {
+  games:[], profile:{name:'',bio:''}, session:null, preview:false, loaded:false, loadErr:false,
+  tab: (TABS.some(t=>'#'+t.k===location.hash) ? location.hash.slice(1) : 'profile'),
+  lib:{shelf:'all', q:'', sort:'updated', tag:'', plat:''},
+  next:{budget:'any', plat:''}, pickId:null,
+};
+try{ const s=JSON.parse(localStorage.getItem('sf.lib')||'null'); if(s) Object.assign(S.lib,s,{q:''}); }catch(e){}
+const isOwner = () => DEMO || !!S.session;
+const canWrite = () => isOwner() && !S.preview;
+
+const $ = (s,r=document)=>r.querySelector(s);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hue = s => { let h=7; for(const c of String(s)) h=(h*31+c.charCodeAt(0))%360; return h; };
+const fmtH = h => { h=+h||0; return h>=100? Math.round(h)+'h' : (Math.round(h*10)/10)+'h'; };
+const today = () => { const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
+const fmtDate = d => { if(!d) return ''; const x=new Date(d+'T12:00:00'); if(isNaN(x)) return ''; return x.toLocaleDateString(undefined,{month:'short',day:'numeric',year: x.getFullYear()===new Date().getFullYear()?undefined:'numeric'}); };
+const totalHours = g => (+g.hours||0) + (g.sessions||[]).reduce((a,s)=>a+(+s.h||0),0);
+const shortPlat = p => ({'PlayStation 5':'PS5','PlayStation 4':'PS4','Xbox Series X|S':'Xbox','Xbox One':'Xbox One','Nintendo Switch':'Switch','Nintendo Switch 2':'Switch 2','Steam Deck':'Deck'}[p]||p||'');
+const stars = (r,lg) => r==null||r===''? '' : `<span class="stars${lg?' lg':''}" style="--r:${(+r)*10}%" role="img" aria-label="${(+r)/2} out of 5 stars">★★★★★</span>`;
+const pill = st => `<span class="pill s-${esc(st)}">${esc(SLABEL[st]||st)}</span>`;
+const newId = () => 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const byId = id => S.games.find(g=>g.id===id);
+const STEAM_IMG = (id,f) => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${encodeURIComponent(id)}/${f}`;
+
+function coverSrc(g){
+  if(g.img) return {src:g.img, fb:''};
+  if(g.steam) return {src:STEAM_IMG(g.steam,'library_600x900_2x.jpg'), fb:STEAM_IMG(g.steam,'header.jpg')};
+  return null;
+}
+function cover(g, rank){
+  const c=coverSrc(g);
+  const img = c ? `<img src="${esc(c.src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" ${c.fb?`data-fb="${esc(c.fb)}"`:''}>` : '';
+  return `<div class="cover${c?' has-img':''}" style="--h:${hue(g.title)}">${img}${g.platform?`<span class="cv-plat">${esc(shortPlat(g.platform))}</span>`:''}${rank?`<span class="cv-rank">${rank}</span>`:''}<span class="cv-title">${esc(g.title)}</span></div>`;
+}
+// Broken cover image: try the fallback, then fall back to the generated cover.
+document.addEventListener('error', e=>{
+  const im=e.target; if(!(im instanceof HTMLImageElement) || !im.closest('.cover')) return;
+  if(im.dataset.fb){ const f=im.dataset.fb; delete im.dataset.fb; im.src=f; return; }
+  im.closest('.cover').classList.remove('has-img'); im.remove();
+}, true);
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,2600); }
+
+/* ============ storage ============ */
+function localLoad(){ try{ return JSON.parse(localStorage.getItem(LOCAL_KEY)||'null'); }catch(e){ return null; } }
+function localSave(){ try{ localStorage.setItem(LOCAL_KEY, JSON.stringify({profile:S.profile, games:S.games})); }catch(e){ toast('This browser is out of space. Remove a few uploaded covers.'); throw e; } }
+async function load(){
+  if(DEMO){ const d=localLoad(); if(d){ S.games=d.games||[]; S.profile={...S.profile,...(d.profile||{})}; } S.loaded=true; render(); return; }
+  try{
+    const [g,p] = await Promise.all([ sb.from('games').select('id,data'), sb.from('profile').select('data').eq('id',1).maybeSingle() ]);
+    if(g.error) throw g.error;
+    S.games = (g.data||[]).map(r=>({...(r.data||{}), id:r.id})).filter(x=>x.title);
+    if(p.data?.data) S.profile={...S.profile,...p.data.data};
+    S.loaded=true; S.loadErr=false;
+  }catch(e){ console.error(e); S.loadErr=true; S.loaded=true; }
+  render();
+}
+async function writeGames(list){
+  if(DEMO){ localSave(); return; }
+  const rows=list.map(g=>{ const {id,...data}=g; return {id, data, updated_at:new Date().toISOString()}; });
+  for(let i=0;i<rows.length;i+=200){ const {error}=await sb.from('games').upsert(rows.slice(i,i+200)); if(error) throw error; }
+}
+async function removeGame(id){
+  if(DEMO){ localSave(); return; }
+  const {error}=await sb.from('games').delete().eq('id',id); if(error) throw error;
+}
+async function writeProfile(){
+  if(DEMO){ localSave(); return; }
+  const {error}=await sb.from('profile').upsert({id:1, data:S.profile}); if(error) throw error;
+}
+// Apply a change locally, save it, and roll back on failure.
+async function commit(fn, okMsg){
+  const snapshot=JSON.stringify({games:S.games, profile:S.profile});
+  let op; try{ op=fn(); }catch(e){ return false; }
+  render();
+  const sv=$('#saving'); sv.hidden=false;
+  try{ await op(); sv.hidden=true; if(okMsg) toast(okMsg); return true; }
+  catch(e){
+    console.error(e); sv.hidden=true;
+    const snap=JSON.parse(snapshot); S.games=snap.games; S.profile=snap.profile; render();
+    toast(S.session||DEMO ? 'Could not save. Check your connection and try again.' : 'Your login expired. Log in again to save.');
+    return false;
+  }
+}
+function saveGame(g, msg){ return commit(()=>{ const i=S.games.findIndex(x=>x.id===g.id); if(i<0) S.games.push(g); else S.games[i]=g; const touched=[g];
+  if(+g.top){ S.games.forEach(x=>{ if(x.id!==g.id && +x.top===+g.top){ x.top=0; touched.push(x);} }); }
+  return ()=>writeGames(touched); }, msg); }
+
+/* ============ render ============ */
+function render(){
+  $('#brandOwner').textContent = S.profile.name ? '· '+S.profile.name : '';
+  document.title = S.profile.name ? `${S.profile.name} · Save File` : 'Save File';
+  $('#tabs').innerHTML = TABS.map(t=>`<button class="tab" data-tab="${t.k}" ${S.tab===t.k?'aria-current="page"':''}>${t.l}</button>`).join('');
+  $('#ownerBar').innerHTML = isOwner() ? `
+    <button class="btn ghost sm" data-act="preview">${S.preview?'Exit visitor view':'View as visitor'}</button>
+    ${S.preview?'':'<button class="btn sm" data-act="log">Log session</button><button class="btn primary sm" data-act="add">+ Add game</button>'}` : '';
+  $('#footAuth').innerHTML = DEMO ? '' : S.session
+    ? `<button class="btn ghost sm" data-act="tools">Import / export</button><button class="btn ghost sm" data-act="logout">Log out</button>`
+    : `<button class="btn ghost sm" data-act="login">Owner login</button>`;
+  const app=$('#app');
+  if(!S.loaded){ app.innerHTML=`<div class="empty"><strong>Loading…</strong></div>`; return; }
+  if(S.loadErr){ app.innerHTML=`<div class="panel empty"><strong>Couldn't load the game log</strong><span>Reload the page to try again.</span></div>`; return; }
+  const v={profile:viewProfile, library:viewLibrary, journal:viewJournal, next:viewNext, stats:viewStats}[S.tab]();
+  const demoBanner = DEMO ? `<div class="banner warn"><span><b>Preview mode.</b> Supabase isn't connected yet, so changes save only in this browser. Finish the setup steps to publish.</span><span class="spacer"></span><button class="btn sm" data-act="tools">Import / export</button></div>` : '';
+  app.innerHTML = demoBanner + (S.preview?`<div class="banner">You're seeing what visitors see.<span class="spacer"></span><button class="btn sm" data-act="preview">Back to editing</button></div>`:'') + v;
+}
+function emptyAll(){
+  return canWrite()
+    ? `<div class="panel empty"><strong>Your save file is empty</strong><span>Add a game, or import your Steam and Xbox libraries.</span><div class="toolbar" style="justify-content:center"><button class="btn primary" data-act="add">+ Add a game</button><button class="btn" data-act="tools">Import</button></div></div>`
+    : `<div class="panel empty"><strong>Nothing logged yet</strong><span>Check back soon.</span></div>`;
+}
+function stats(){
+  const G=S.games, rated=G.filter(g=>g.rating!=null&&g.rating!=='');
+  return {
+    played:G.filter(g=>PLAYED.includes(g.status)).length,
+    finished:G.filter(g=>g.status==='beaten'||g.status==='completed').length,
+    hours:G.reduce((a,g)=>a+totalHours(g),0),
+    avg: rated.length? rated.reduce((a,g)=>a+ +g.rating,0)/rated.length/2 : null,
+    backlog:G.filter(g=>g.status==='backlog').length,
+    backlogH:G.filter(g=>g.status==='backlog').reduce((a,g)=>a+(+g.hltb?.main||0),0),
+    playing:G.filter(g=>g.status==='playing'),
+  };
+}
+function gameCard(g){
+  return `<button class="card" data-open="${esc(g.id)}">${cover(g)}<span class="card-name">${esc(g.title)}</span><span class="card-meta">${g.rating!=null&&g.rating!==''?stars(g.rating):pill(g.status)}</span></button>`;
+}
+function viewProfile(){
+  const st=stats(), G=S.games;
+  const initial=(S.profile.name||'?').trim().charAt(0).toUpperCase()||'?';
+  const hero=`<section class="hero"><div class="avatar">${esc(initial)}</div><div>
+      <h1>${esc(S.profile.name||'My Save File')}</h1>
+      <p>${esc(S.profile.bio||(canWrite()?'Add a short bio so visitors know what you play.':'Games played, rated and reviewed.'))}</p>
+      ${canWrite()?'<button class="btn ghost sm" data-act="profile" style="margin-top:6px;margin-left:-8px">Edit profile</button>':''}
+    </div></section>
+    <div class="statline">
+      <div class="stat"><b>${st.played}</b><span>Played</span></div>
+      <div class="stat"><b>${st.finished}</b><span>Beaten</span></div>
+      <div class="stat"><b>${fmtH(st.hours)}</b><span>Hours logged</span></div>
+      <div class="stat"><b>${st.avg==null?'—':st.avg.toFixed(1)}</b><span>Avg rating / 5</span></div>
+      <div class="stat"><b>${st.backlog}</b><span>In backlog</span></div>
+    </div>`;
+  if(!G.length) return hero+emptyAll();
+  const top=[1,2,3,4].map(n=>G.find(g=>+g.top===n));
+  const favs=`<section><div class="sec-head"><h2>Favorite games</h2><span class="hint">The four that define my taste</span></div>
+    <div class="top4">${top.map((g,i)=> g?`<button class="card" data-open="${esc(g.id)}">${cover(g,i+1)}</button>`:`<div class="slot-empty">${canWrite()?'Pick a favorite in any game\'s edit screen':'Empty slot'}</div>`).join('')}</div></section>`;
+  const playing=st.playing.length?`<section><div class="sec-head"><h2>Currently playing</h2></div><div class="grid">${st.playing.map(gameCard).join('')}</div></section>`:'';
+  const revs=G.filter(g=>g.review).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).slice(0,4);
+  const reviews=revs.length?`<section><div class="sec-head"><h2>Recent reviews</h2></div><div class="reviews">${revs.map(reviewCard).join('')}</div></section>`:'';
+  const topRated=G.filter(g=>+g.rating>=8).sort((a,b)=>+b.rating-+a.rating).slice(0,12);
+  const rated=topRated.length?`<section><div class="sec-head"><h2>Highest rated</h2></div><div class="grid">${topRated.map(gameCard).join('')}</div></section>`:'';
+  const acts=allSessions().slice(0,6);
+  const activity=acts.length?`<section><div class="sec-head"><h2>Recent sessions</h2><button class="btn ghost sm" data-tab="journal">Open journal</button></div><div class="panel rows">${acts.map(sessionRow).join('')}</div></section>`:'';
+  return hero+favs+playing+reviews+rated+activity;
+}
+function reviewCard(g){
+  return `<button class="review" data-open="${esc(g.id)}">${cover(g)}<div class="review-body"><div class="card-name">${esc(g.title)}</div><div class="card-meta">${stars(g.rating)}${pill(g.status)}</div><p class="review-text ${g.spoiler?'spoiler':''}">${esc(g.review)}</p></div></button>`;
+}
+function libFiltered(){
+  const L=S.lib, q=L.q.trim().toLowerCase();
+  const G=S.games.filter(g=>{
+    if(L.shelf==='played' && !PLAYED.includes(g.status)) return false;
+    if(!['all','played'].includes(L.shelf) && g.status!==L.shelf) return false;
+    if(L.tag && !(g.tags||[]).includes(L.tag)) return false;
+    if(L.plat && g.platform!==L.plat) return false;
+    if(q && !(g.title.toLowerCase().includes(q) || (g.tags||[]).some(t=>t.toLowerCase().includes(q)))) return false;
+    return true;
+  });
+  const sorts={updated:(a,b)=>(b.updatedAt||0)-(a.updatedAt||0), title:(a,b)=>a.title.localeCompare(b.title), rating:(a,b)=>(+b.rating||-1)-(+a.rating||-1), hours:(a,b)=>totalHours(b)-totalHours(a)};
+  return G.sort(sorts[L.sort]||sorts.updated);
+}
+function viewLibrary(){
+  if(!S.games.length) return emptyAll();
+  const cnt=k=>k==='all'?S.games.length:k==='played'?S.games.filter(g=>PLAYED.includes(g.status)).length:S.games.filter(g=>g.status===k).length;
+  const shelves=[['all','All'],['playing','Playing'],['backlog','Backlog'],['wishlist','Wishlist'],['played','Played']];
+  const tags=[...new Set(S.games.flatMap(g=>g.tags||[]))].sort();
+  const plats=[...new Set(S.games.map(g=>g.platform).filter(Boolean))].sort();
+  const G=libFiltered(); const shown=G.slice(0, S.libLimit||120);
+  return `<section>
+    <div class="chips" role="group" aria-label="Shelves">${shelves.map(([k,l])=>`<button class="chip" data-shelf="${k}" aria-pressed="${S.lib.shelf===k}">${l}<span class="n">${cnt(k)}</span></button>`).join('')}</div>
+    <div class="toolbar">
+      <input id="libq" class="input search" type="search" placeholder="Search titles or lists" value="${esc(S.lib.q)}" aria-label="Search library">
+      <select id="libplat" class="input" aria-label="Platform"><option value="">All platforms</option>${plats.map(p=>`<option ${S.lib.plat===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
+      ${tags.length?`<select id="libtag" class="input" aria-label="List"><option value="">All lists</option>${tags.map(t=>`<option ${S.lib.tag===t?'selected':''}>${esc(t)}</option>`).join('')}</select>`:''}
+      <select id="libsort" class="input" aria-label="Sort">${[['updated','Recently updated'],['rating','Highest rated'],['hours','Most played'],['title','A–Z']].map(([k,l])=>`<option value="${k}" ${S.lib.sort===k?'selected':''}>${l}</option>`).join('')}</select>
+    </div>
+    ${G.length?`<div class="grid">${shown.map(gameCard).join('')}</div>${G.length>shown.length?`<button class="btn" data-act="more" style="align-self:center">Show more (${G.length-shown.length})</button>`:''}`:`<div class="panel empty"><strong>No games match</strong><span>Try another shelf or clear the search.</span></div>`}
+  </section>`;
+}
+function allSessions(){
+  const out=[]; S.games.forEach(g=>(g.sessions||[]).forEach((s,i)=>out.push({g,s,i})));
+  return out.sort((a,b)=>(b.s.d||'').localeCompare(a.s.d||'')||(b.s.t||0)-(a.s.t||0));
+}
+function sessionRow({g,s}){
+  return `<button class="row" data-open="${esc(g.id)}">${cover(g)}<div class="row-main"><div class="row-title">${esc(g.title)} <span class="num" style="color:var(--muted);font-weight:400">· ${fmtH(s.h)}</span></div><div class="row-sub">${esc(s.n||'Played a session')}</div></div><div class="j-date">${esc(fmtDate(s.d))}</div></button>`;
+}
+function viewJournal(){
+  const all=allSessions();
+  const head=`<div class="sec-head"><h2>Play journal</h2><span class="hint">Every session, newest first. Notes remember where you left off.</span></div>`;
+  if(!all.length) return `<section>${head}<div class="panel empty"><strong>No sessions yet</strong><span>${canWrite()?'Log a session after you play to track hours and leave yourself a note.':'Sessions will show up here.'}</span>${canWrite()&&S.games.length?'<button class="btn primary" data-act="log">Log a session</button>':''}</div></section>`;
+  const groups={}; all.forEach(x=>{ const k=(x.s.d||'').slice(0,7); (groups[k]=groups[k]||[]).push(x); });
+  return `<section>${head}<div class="panel">${Object.entries(groups).map(([k,xs])=>{ const d=new Date(k+'-15T12:00:00'); const h=xs.reduce((a,x)=>a+(+x.s.h||0),0);
+    return `<div class="month">${esc(isNaN(d)?'Undated':d.toLocaleDateString(undefined,{month:'long',year:'numeric'}))} <span class="num" style="font-weight:400">· ${fmtH(h)}</span></div><div class="rows">${xs.map(sessionRow).join('')}</div>`; }).join('')}</div></section>`;
+}
+function nextPool(){
+  const {budget,plat}=S.next;
+  return S.games.filter(g=>g.status==='backlog').filter(g=>{ const m=+g.hltb?.main||0;
+    if(plat && g.platform!==plat) return false;
+    if(budget==='short') return m>0&&m<10; if(budget==='mid') return m>=10&&m<=30; if(budget==='long') return m>30; return true;
+  }).sort((a,b)=>(+b.priority||2)-(+a.priority||2)||(+a.hltb?.main||999)-(+b.hltb?.main||999));
+}
+function viewNext(){
+  const back=S.games.filter(g=>g.status==='backlog');
+  const head=`<div class="sec-head"><h2>What should I play next?</h2><span class="hint">Filter the backlog by how much time you have, then let it pick.</span></div>`;
+  if(!back.length) return `<section>${head}<div class="panel empty"><strong>Backlog is empty</strong><span>${canWrite()?'Games with the Backlog status show up here.':'Nothing waiting in the backlog.'}</span></div></section>`;
+  const pool=nextPool(); const pick=pool.find(g=>g.id===S.pickId);
+  const plats=[...new Set(back.map(g=>g.platform).filter(Boolean))].sort();
+  const budgets=[['any','Any length'],['short','Under 10h'],['mid','10–30h'],['long','30h+']];
+  const pickHtml=pick?`<div class="panel pick" id="pickPanel">${cover(pick)}<div><div class="label">Tonight's pick</div><h3>${esc(pick.title)}</h3>
+      <div class="pick-meta"><span>${esc(pick.platform||'Any platform')}</span>${pick.hltb?.main?`<span class="num">~${fmtH(pick.hltb.main)} main story</span>`:''}<span class="prio">${'▲'.repeat(+pick.priority||2)} priority</span></div>
+      <div class="toolbar" style="margin-top:14px"><button class="btn primary" data-act="roll">Roll again</button><button class="btn" data-open="${esc(pick.id)}">Details</button>${canWrite()?`<button class="btn" data-start="${esc(pick.id)}">Start playing</button>`:''}</div></div></div>`
+    :`<div class="panel empty"><strong>${pool.length} game${pool.length===1?'':'s'} fit</strong><span>Higher-priority games come up more often.</span><button class="btn primary" data-act="roll" ${pool.length?'':'disabled'}>Pick for me</button></div>`;
+  return `<section>${head}
+    <div class="toolbar"><div class="chips">${budgets.map(([k,l])=>`<button class="chip" data-budget="${k}" aria-pressed="${S.next.budget===k}">${l}</button>`).join('')}</div>
+    ${plats.length>1?`<select id="nextplat" class="input" aria-label="Platform"><option value="">Any platform</option>${plats.map(p=>`<option ${S.next.plat===p?'selected':''}>${esc(p)}</option>`).join('')}</select>`:''}</div>
+    ${pickHtml}
+    <div class="sec-head"><h2 style="font-size:15px">Backlog queue</h2><span class="hint">${pool.length} match · ${fmtH(pool.reduce((a,g)=>a+(+g.hltb?.main||0),0))} to beat</span></div>
+    <div class="panel rows">${pool.length?pool.slice(0,200).map(g=>`<button class="row" data-open="${esc(g.id)}">${cover(g)}<div class="row-main"><div class="row-title">${esc(g.title)}</div><div class="row-sub">${esc(g.platform||'')}${g.hltb?.main?` · ~${fmtH(g.hltb.main)}`:' · length unknown'}</div></div><span class="prio">${'▲'.repeat(+g.priority||2)}</span></button>`).join(''):'<div class="empty">No backlog games match these filters.</div>'}</div>
+  </section>`;
+}
+function barRows(items, fmt){
+  const max=Math.max(1,...items.map(i=>i[1]));
+  return items.map(([l,v])=>`<div class="bar-row"><span class="bl" title="${esc(l)}">${esc(l)}</span><div class="bar-track"><div class="bar-fill" style="width:${v/max*100}%"></div></div><span class="bv">${fmt(v)}</span></div>`).join('');
+}
+function viewStats(){
+  if(!S.games.length) return emptyAll();
+  const st=stats(), G=S.games;
+  const hist=Array.from({length:10},(_,i)=>G.filter(g=>+g.rating===i+1).length); const hmax=Math.max(1,...hist);
+  const byPlat={}; G.forEach(g=>{const p=g.platform||'Unknown'; byPlat[p]=(byPlat[p]||0)+totalHours(g);});
+  const byGame=G.map(g=>[g.title,totalHours(g)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const counts=STATUSES.map(s=>[s,G.filter(g=>g.status===s.k).length]).filter(x=>x[1]);
+  const years={}; G.filter(g=>g.finished&&(g.status==='beaten'||g.status==='completed')).forEach(g=>{const y=g.finished.slice(0,4); years[y]=(years[y]||0)+1;});
+  const compRate=st.played?Math.round(st.finished/st.played*100):0;
+  return `<section><div class="statline">
+      <div class="stat"><b>${fmtH(st.hours)}</b><span>Total playtime</span></div>
+      <div class="stat"><b>${compRate}%</b><span>Finish rate</span></div>
+      <div class="stat"><b>${G.filter(g=>g.status==='completed').length}</b><span>100% completions</span></div>
+      <div class="stat"><b>${G.length}</b><span>Games tracked</span></div>
+      <div class="stat"><b>${fmtH(st.backlogH)}</b><span>Backlog to beat</span></div>
+    </div></section>
+    <section class="two">
+      <div class="panel"><h3>Collection by status</h3><div class="stack">${counts.map(([s,n])=>`<span class="s-${s.k}" style="flex:${n}" title="${esc(s.l)}: ${n}"></span>`).join('')}</div>
+        <div class="legend">${counts.map(([s,n])=>`<span class="pill s-${s.k}">${esc(s.l)} <span class="num">${n}</span></span>`).join('')}</div></div>
+      <div class="panel"><h3>Rating spread</h3><div class="hist">${hist.map(n=>`<div class="hist-col"><span class="hist-n">${n||''}</span><div class="hist-bar" style="height:${n/hmax*100}%"></div></div>`).join('')}</div>
+        <div class="hist-x">${hist.map((_,i)=>`<span>${(i+1)/2}</span>`).join('')}</div></div>
+    </section>
+    <section class="two">
+      <div class="panel"><h3>Hours by platform</h3><div class="bars">${barRows(Object.entries(byPlat).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]),fmtH)||'<span style="color:var(--muted)">Log hours to see this.</span>'}</div></div>
+      <div class="panel"><h3>Most played</h3><div class="bars">${byGame.length?barRows(byGame,fmtH):'<span style="color:var(--muted)">Log hours to see this.</span>'}</div></div>
+    </section>
+    ${Object.keys(years).length?`<section><div class="panel"><h3>Games finished per year</h3><div class="bars">${barRows(Object.entries(years).sort((a,b)=>b[0].localeCompare(a[0])),v=>String(v))}</div></div></section>`:''}`;
+}
+
+/* ============ cover tools ============ */
+function imgToCover(file){
+  return new Promise((res,rej)=>{
+    if(!file||!/^image\//.test(file.type||'')) return rej(new Error('type'));
+    const url=URL.createObjectURL(file), im=new Image();
+    im.onload=()=>{ const W=360,H=480,c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+      const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
+      x.fillStyle='#111'; x.fillRect(0,0,W,H); x.drawImage(im,(W-w)/2,(H-h)/2,w,h); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',0.8)); };
+    im.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('load')); };
+    im.src=url;
+  });
+}
+// Box art from Wikipedia game articles (free, no key needed).
+async function findCovers(title){
+  const q=encodeURIComponent(title+' video game');
+  const url=`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrsearch=${q}&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=500`;
+  const r=await fetch(url); if(!r.ok) throw new Error('search');
+  const j=await r.json(); const pages=Object.values(j.query?.pages||{}).sort((a,b)=>a.index-b.index);
+  return pages.filter(p=>p.thumbnail?.source && !/\.svg/i.test(p.thumbnail.source)).map(p=>({src:p.thumbnail.source, label:p.title})).slice(0,6);
+}
+const steamIdFrom = s => (String(s||'').match(/(?:app\/|apps\/)(\d+)/)||[])[1] || (/^\d+$/.test(String(s||'').trim())?String(s).trim():'');
+let onPasteImage=null;
+document.addEventListener('paste', e=>{
+  if(!onPasteImage||!dlg.open) return;
+  const f=[...(e.clipboardData?.items||[])].find(i=>i.kind==='file'&&/^image\//.test(i.type))?.getAsFile();
+  if(f){ e.preventDefault(); onPasteImage(f); }
+});
+function wireDrop(el, handler){
+  if(!el) return;
+  el.addEventListener('dragover',e=>{ e.preventDefault(); el.classList.add('drag'); });
+  el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+  el.addEventListener('drop',e=>{ e.preventDefault(); el.classList.remove('drag'); const f=e.dataTransfer?.files?.[0]; if(f) handler(f); });
+}
+
+/* ============ dialogs ============ */
+const dlg=$('#dlg');
+function openDlg(html){ dlg.innerHTML=html; if(!dlg.open){ try{dlg.showModal();}catch(e){dlg.setAttribute('open','');} } }
+function closeDlg(){ onPasteImage=null; try{dlg.close();}catch(e){dlg.removeAttribute('open');} }
+dlg.addEventListener('close',()=>{ onPasteImage=null; });
+dlg.addEventListener('click',e=>{ if(e.target===dlg) closeDlg(); });
+
+function detail(id){
+  const g=byId(id); if(!g) return;
+  const th=totalHours(g), H=g.hltb||{}, tmax=Math.max(th,+H.main||0,+H.extra||0,+H.comp||0,1);
+  const trow=(l,v,you)=>v?`<div class="bar-row"><span class="bl">${l}</span><div class="bar-track"><div class="bar-fill ${you?'you':''}" style="width:${v/tmax*100}%"></div></div><span class="bv">${fmtH(v)}</span></div>`:'';
+  const q=encodeURIComponent(g.title);
+  const sess=(g.sessions||[]).map((s,i)=>({s,i})).sort((a,b)=>(b.s.d||'').localeCompare(a.s.d||''));
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><h2>${esc(g.title)}</h2><button class="btn ghost sm" data-close>Close</button></div>
+    <div class="dlg-body">
+      <div class="detail">${canWrite()
+        ?`<div class="cover-edit" id="quickDrop">${cover(g,g.top||'')}<label class="btn sm" for="quickCover" style="justify-content:center">Upload cover</label><input type="file" accept="image/*" id="quickCover" class="vh"><span style="font-size:12px;color:var(--muted);text-align:center">or paste an image</span></div>`
+        :cover(g,g.top||'')}
+        <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+        <div class="card-meta">${pill(g.status)}${canWrite()
+          ?`<span class="rater" role="group" aria-label="Rate ${esc(g.title)}">${Array.from({length:10},(_,i)=>i+1).map(v=>`<button class="half ${v%2?'l':'r'} ${v<=(+g.rating||0)?'on':''}" data-rate="${v}" data-g="${esc(g.id)}" aria-label="${v/2} stars"><span>★</span></button>`).join('')}</span><span class="rate-val">${g.rating?(+g.rating/2).toFixed(1):'Tap to rate'}</span>`
+          :(g.rating!=null&&g.rating!==''?stars(g.rating,true)+`<span class="num" style="color:var(--muted)">${(+g.rating/2).toFixed(1)}</span>`:'')}</div>
+        <div class="kv">${g.platform?`<span>Platform <b>${esc(g.platform)}</b></span>`:''}${g.year?`<span>Released <b class="num">${esc(g.year)}</b></span>`:''}${g.started?`<span>Started <b>${esc(fmtDate(g.started))}</b></span>`:''}${g.finished?`<span>Finished <b>${esc(fmtDate(g.finished))}</b></span>`:''}${g.lastPlayed?`<span>Last played <b>${esc(fmtDate(g.lastPlayed))}</b></span>`:''}</div>
+        ${(g.tags||[]).length?`<div class="card-meta">${g.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
+        <div class="links">${g.steam?`<a href="https://store.steampowered.com/app/${esc(g.steam)}" target="_blank" rel="noopener">Steam ↗</a>`:''}<a href="https://howlongtobeat.com/?q=${q}" target="_blank" rel="noopener">HowLongToBeat ↗</a><a href="https://backloggd.com/search/games/${q}" target="_blank" rel="noopener">Backloggd ↗</a></div>
+      </div></div>
+      ${g.review?`<div><div class="label" style="margin-bottom:6px">Review${g.spoiler?' · contains spoilers':''}</div><p class="review-full ${g.spoiler?'spoiler':''}" ${g.spoiler?'title="Click to reveal"':''}>${esc(g.review)}</p></div>`:''}
+      ${(th||H.main||H.extra||H.comp)?`<div><div class="label" style="margin-bottom:8px">Time</div><div class="time">${trow('Played',th,true)}${trow('Main story',+H.main)}${trow('Main + extras',+H.extra)}${trow('Completionist',+H.comp)}</div></div>`:''}
+      ${sess.length?`<div><div class="label" style="margin-bottom:6px">Sessions</div><div class="panel rows">${sess.map(({s,i})=>`<div class="row" style="grid-template-columns:1fr auto auto"><div class="row-main"><div class="row-sub" style="color:var(--ink);white-space:normal">${esc(s.n||'Played a session')}</div></div><span class="num" style="font-size:13px">${fmtH(s.h)}</span><span class="j-date">${esc(fmtDate(s.d))}${canWrite()?` <button class="btn ghost sm" data-delsess="${i}" data-g="${esc(g.id)}" aria-label="Remove session">✕</button>`:''}</span></div>`).join('')}</div></div>`:''}
+    </div>
+    ${canWrite()?`<div class="dlg-foot"><button class="btn primary" data-edit="${esc(g.id)}">Edit</button><button class="btn" data-logfor="${esc(g.id)}">Log session</button><span class="spacer"></span><button class="btn danger ghost" data-del="${esc(g.id)}">Delete</button></div>`:''}
+  </div>`);
+  if(canWrite()){
+    const setCover=async f=>{ let img; try{ img=await imgToCover(f); }catch(_){ toast('That file isn\'t an image this page can read. Try a JPG or PNG.'); return; }
+      await saveGame({...g, img, updatedAt:Date.now()}, 'Cover saved'); detail(g.id); };
+    onPasteImage=setCover;
+    $('#quickCover')?.addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) setCover(f); });
+    wireDrop($('#quickDrop'), setCover);
+  }
+}
+function editForm(id){
+  const g=id?byId(id):{title:'',platform:'',status:'backlog',rating:'',review:'',spoiler:false,top:0,priority:2,hltb:{},hours:'',tags:[],started:'',finished:'',year:'',img:'',steam:''};
+  if(!g) return;
+  const H=g.hltb||{}, r=g.rating==null||g.rating===''?0:+g.rating;
+  openDlg(`<form class="dlg" id="gform" novalidate>
+    <div class="dlg-head"><h2>${id?'Edit game':'Add a game'}</h2><button type="button" class="btn ghost sm" data-close>Cancel</button></div>
+    <div class="dlg-body"><div class="form">
+      <div class="field full"><label for="f-title">Title</label><input class="input" id="f-title" name="title" required value="${esc(g.title)}" placeholder="e.g. Hollow Knight" autocomplete="off"></div>
+      <div class="field full"><label>Cover art</label><div class="cover-pick" id="coverPick"><div id="coverPrev"></div><div class="cover-actions">
+        <div class="cover-btns"><button type="button" class="btn sm primary" id="findBtn">Find cover</button><label class="btn sm" for="f-cover">Upload</label><button type="button" class="btn ghost sm" id="coverClear">Remove</button></div>
+        <input type="file" accept="image/*" id="f-cover" class="vh">
+        <div class="cands" id="cands"></div>
+        <input class="input" id="f-imgurl" placeholder="Or paste an image link or a Steam store link" autocomplete="off">
+        <span class="hint">You can also paste or drop an image here.</span>
+      </div></div></div>
+      <div class="field"><label for="f-platform">Platform</label><input class="input" id="f-platform" name="platform" list="platlist" value="${esc(g.platform||'')}" placeholder="PC"><datalist id="platlist">${PLATFORMS.map(p=>`<option value="${esc(p)}">`).join('')}</datalist></div>
+      <div class="field"><label for="f-status">Status</label><select class="input" id="f-status" name="status">${STATUSES.map(s=>`<option value="${s.k}" ${g.status===s.k?'selected':''}>${s.l}</option>`).join('')}</select></div>
+      <div class="field full"><label for="f-rating">Rating</label><div class="rate-row"><input type="range" id="f-rating" name="rating" min="0" max="10" step="1" value="${r}"><span id="rateShow">${r?stars(r,true):'<span style="color:var(--muted)">No rating</span>'}</span></div></div>
+      <div class="field full"><label for="f-review">Review</label><textarea class="input" id="f-review" name="review" placeholder="What did you think?">${esc(g.review||'')}</textarea><label class="check"><input type="checkbox" id="f-spoiler" name="spoiler" ${g.spoiler?'checked':''}> Hide behind a spoiler blur</label></div>
+      <div class="field"><label for="f-hours">Hours played before logging sessions</label><input class="input num" type="number" min="0" step="0.5" id="f-hours" name="hours" value="${esc(g.hours??'')}" placeholder="0"></div>
+      <div class="field"><label for="f-year">Release year</label><input class="input num" type="number" min="1970" max="2100" id="f-year" name="year" value="${esc(g.year||'')}" placeholder="2024"></div>
+      <div class="field full"><label>HowLongToBeat times (hours)</label><div class="trio">
+        <input class="input num" type="number" min="0" step="0.5" id="f-main" name="main" value="${esc(H.main||'')}" placeholder="Main" aria-label="Main story hours">
+        <input class="input num" type="number" min="0" step="0.5" id="f-extra" name="extra" value="${esc(H.extra||'')}" placeholder="+ Extras" aria-label="Main plus extras hours">
+        <input class="input num" type="number" min="0" step="0.5" id="f-comp" name="comp" value="${esc(H.comp||'')}" placeholder="100%" aria-label="Completionist hours"></div></div>
+      <div class="field"><label for="f-started">Started</label><input class="input" type="date" id="f-started" name="started" value="${esc(g.started||'')}"></div>
+      <div class="field"><label for="f-finished">Finished</label><input class="input" type="date" id="f-finished" name="finished" value="${esc(g.finished||'')}"></div>
+      <div class="field"><label for="f-top">Favorite slot</label><select class="input" id="f-top" name="top"><option value="0">Not a favorite</option>${[1,2,3,4].map(n=>{const o=S.games.find(x=>+x.top===n&&x.id!==id);return `<option value="${n}" ${+g.top===n?'selected':''}>Slot ${n}${o?' (replaces '+esc(o.title)+')':''}</option>`}).join('')}</select></div>
+      <div class="field"><label for="f-priority">Backlog priority</label><select class="input" id="f-priority" name="priority">${[[3,'High'],[2,'Normal'],[1,'Low']].map(([v,l])=>`<option value="${v}" ${(+g.priority||2)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+      <div class="field full"><label for="f-tags">Lists</label><input class="input" id="f-tags" name="tags" value="${esc((g.tags||[]).join(', '))}" placeholder="co-op, comfort games, GOTY 2026"></div>
+    </div><p id="formErr" style="color:var(--bad);margin:0" hidden></p></div>
+    <div class="dlg-foot"><button type="submit" class="btn primary" id="saveBtn">${id?'Save changes':'Add game'}</button><span style="color:var(--muted);font-size:13px">Only the title is required.</span></div>
+  </form>`);
+  const rg=$('#f-rating'); rg.addEventListener('input',()=>{$('#rateShow').innerHTML=+rg.value?stars(+rg.value,true):'<span style="color:var(--muted)">No rating</span>';});
+  let img=g.img||'', steam=g.steam||'';
+  const err=m=>{ const p=$('#formErr'); p.textContent=m; p.hidden=!m; };
+  const drawPrev=()=>{ $('#coverPrev').innerHTML=cover({title:$('#f-title').value||'New game', platform:$('#f-platform').value, img, steam}); $('#coverClear').hidden=!(img||steam); };
+  const takeFile=async f=>{ try{ img=await imgToCover(f); err(''); drawPrev(); }catch(_){ err('That file isn\'t an image this page can read. Try a JPG or PNG.'); } };
+  drawPrev();
+  $('#f-title').addEventListener('input',()=>{ if(!img&&!steam) drawPrev(); });
+  $('#f-cover').addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) takeFile(f); });
+  $('#coverClear').addEventListener('click',()=>{ img=''; steam=''; drawPrev(); });
+  $('#f-imgurl').addEventListener('change',e=>{ const v=e.target.value.trim(); if(!v) return; const sid=steamIdFrom(v);
+    if(sid && /steam|^\d+$/.test(v)){ steam=sid; img=''; } else if(/^https?:\/\//.test(v)){ img=v; } else { err('Paste a link that starts with https://'); return; }
+    err(''); drawPrev(); });
+  $('#findBtn').addEventListener('click',async()=>{
+    const t=$('#f-title').value.trim(); if(!t){ err('Type the title first.'); return; }
+    const box=$('#cands'); box.innerHTML='<span class="hint">Searching…</span>';
+    try{ const res=await findCovers(t);
+      box.innerHTML = res.length ? res.map((c,i)=>`<button type="button" class="cand" data-src="${esc(c.src)}" title="${esc(c.label)}" aria-pressed="${img===c.src}">${cover({title:c.label,img:c.src})}</button>`).join('') : '<span class="hint">No covers found. Try a shorter title, or upload one.</span>';
+      box.querySelectorAll('.cand').forEach(b=>b.addEventListener('click',()=>{ img=b.dataset.src; steam=''; box.querySelectorAll('.cand').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); drawPrev(); }));
+    }catch(_){ box.innerHTML='<span class="hint">Cover search is unavailable right now. Upload one instead.</span>'; }
+  });
+  wireDrop($('#coverPick'), takeFile);
+  onPasteImage=takeFile;
+  $('#gform').addEventListener('submit',e=>{ e.preventDefault(); submitGame(id, new FormData(e.target), img, steam); });
+  setTimeout(()=>$('#f-title')?.focus(),30);
+}
+async function submitGame(id, fd, img, steam){
+  const title=(fd.get('title')||'').trim();
+  if(!title){ const p=$('#formErr'); p.textContent='Add a title to save this game.'; p.hidden=false; return; }
+  const n=v=>{const x=parseFloat(v); return isFinite(x)&&x>=0?x:null;};
+  const prev=id?byId(id):null, rating=+fd.get('rating'), status=fd.get('status');
+  if(!img && !steam && !prev){ try{ const c=await Promise.race([findCovers(title), new Promise((_,r)=>setTimeout(()=>r(),3000))]); if(c?.[0]) img=c[0].src; }catch(_){} }
+  const g={ ...(prev||{}), id: id||newId(),
+    title, platform:(fd.get('platform')||'').trim(), status, rating: rating||null,
+    review:(fd.get('review')||'').trim(), spoiler:fd.get('spoiler')==='on',
+    hours:n(fd.get('hours')), year:n(fd.get('year')),
+    hltb:{main:n(fd.get('main')), extra:n(fd.get('extra')), comp:n(fd.get('comp'))},
+    started:fd.get('started')||'', finished:fd.get('finished')||'',
+    top:+fd.get('top')||0, priority:+fd.get('priority')||2,
+    tags:(fd.get('tags')||'').split(',').map(t=>t.trim()).filter(Boolean).slice(0,20),
+    sessions:prev?.sessions||[], img:img||'', steam:steam||'',
+    createdAt:prev?.createdAt||Date.now(), updatedAt:Date.now() };
+  if(!g.finished && (status==='beaten'||status==='completed') && !(prev&&(prev.status==='beaten'||prev.status==='completed'))) g.finished=today();
+  if(!g.started && status==='playing') g.started=today();
+  closeDlg();
+  await saveGame(g, id?'Saved':'Added '+title);
+}
+function logForm(gid){
+  const opts=S.games.slice().sort((a,b)=>(a.status==='playing'?0:1)-(b.status==='playing'?0:1)||a.title.localeCompare(b.title));
+  if(!opts.length){ editForm(); return; }
+  openDlg(`<form class="dlg" id="sform" novalidate>
+    <div class="dlg-head"><h2>Log a session</h2><button type="button" class="btn ghost sm" data-close>Cancel</button></div>
+    <div class="dlg-body"><div class="form">
+      <div class="field full"><label for="s-game">Game</label><select class="input" id="s-game" name="game">${opts.map(g=>`<option value="${esc(g.id)}" ${g.id===gid?'selected':''}>${esc(g.title)}${g.status==='playing'?' · playing':''}</option>`).join('')}</select></div>
+      <div class="field"><label for="s-date">Date</label><input class="input" type="date" id="s-date" name="d" value="${today()}"></div>
+      <div class="field"><label for="s-hours">Hours</label><input class="input num" type="number" min="0.25" step="0.25" id="s-hours" name="h" value="1.5"></div>
+      <div class="field full"><label for="s-note">Where you left off</label><textarea class="input" id="s-note" name="n" placeholder="Beat the second boss, heading to the forest next"></textarea></div>
+      <label class="check field full"><input type="checkbox" id="s-playing" name="playing" checked> Mark as currently playing</label>
+    </div><p id="formErr" style="color:var(--bad);margin:0" hidden></p></div>
+    <div class="dlg-foot"><button type="submit" class="btn primary">Log session</button></div>
+  </form>`);
+  $('#sform').addEventListener('submit',async e=>{
+    e.preventDefault(); const fd=new FormData(e.target); const g=byId(fd.get('game')); if(!g) return;
+    const h=parseFloat(fd.get('h')); if(!(h>0)){ const p=$('#formErr'); p.textContent='Enter how many hours you played.'; p.hidden=false; return; }
+    const ng={...g, sessions:[...(g.sessions||[]), {d:fd.get('d')||today(), h, n:(fd.get('n')||'').trim(), t:Date.now()}].slice(-300), updatedAt:Date.now()};
+    if(fd.get('playing')==='on' && g.status!=='playing'){ ng.status='playing'; if(!g.started) ng.started=fd.get('d')||today(); }
+    closeDlg(); await saveGame(ng, 'Logged '+fmtH(h)+' of '+g.title);
+  });
+}
+function profileForm(){
+  openDlg(`<form class="dlg" id="pform" novalidate>
+    <div class="dlg-head"><h2>Edit profile</h2><button type="button" class="btn ghost sm" data-close>Cancel</button></div>
+    <div class="dlg-body"><div class="form">
+      <div class="field full"><label for="p-name">Display name</label><input class="input" id="p-name" name="name" value="${esc(S.profile.name||'')}" maxlength="40"></div>
+      <div class="field full"><label for="p-bio">Bio</label><textarea class="input" id="p-bio" name="bio" maxlength="240" placeholder="What you play and how you rate">${esc(S.profile.bio||'')}</textarea></div>
+    </div></div>
+    <div class="dlg-foot"><button type="submit" class="btn primary">Save profile</button></div></form>`);
+  $('#pform').addEventListener('submit',async e=>{ e.preventDefault(); const fd=new FormData(e.target); closeDlg();
+    await commit(()=>{ S.profile={name:(fd.get('name')||'').trim(), bio:(fd.get('bio')||'').trim()}; return writeProfile; }, 'Profile saved'); });
+}
+function loginForm(){
+  openDlg(`<form class="dlg" id="lform" novalidate>
+    <div class="dlg-head"><h2>Owner login</h2><button type="button" class="btn ghost sm" data-close>Cancel</button></div>
+    <div class="dlg-body"><div class="form">
+      <div class="field full"><label for="l-email">Email</label><input class="input" type="email" id="l-email" name="email" autocomplete="username" required></div>
+      <div class="field full"><label for="l-pass">Password</label><input class="input" type="password" id="l-pass" name="password" autocomplete="current-password" required></div>
+    </div><p id="formErr" style="color:var(--bad);margin:0" hidden></p></div>
+    <div class="dlg-foot"><button type="submit" class="btn primary" id="saveBtn">Log in</button></div></form>`);
+  setTimeout(()=>$('#l-email')?.focus(),30);
+  $('#lform').addEventListener('submit',async e=>{ e.preventDefault(); const fd=new FormData(e.target); $('#saveBtn').disabled=true;
+    const {data,error}=await sb.auth.signInWithPassword({email:fd.get('email'), password:fd.get('password')});
+    if(error){ $('#saveBtn').disabled=false; const p=$('#formErr'); p.textContent='That email and password don\'t match.'; p.hidden=false; return; }
+    S.session=data.session; closeDlg(); render(); toast('Logged in. You can edit now.'); });
+}
+function toolsForm(){
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><h2>Import / export</h2><button class="btn ghost sm" data-close>Close</button></div>
+    <div class="dlg-body">
+      <div><div class="label" style="margin-bottom:6px">Import a library file</div>
+        <p style="margin:0 0 10px;color:var(--muted);font-size:14px">Adds games from a Save File .json (like your Steam or Xbox import). Games you already have are updated with new hours and covers, and your ratings and reviews are kept.</p>
+        <label class="btn primary" for="impFile">Choose file</label><input type="file" id="impFile" class="vh" accept=".json,application/json">
+        <p id="impMsg" style="margin:10px 0 0;font-size:14px" hidden></p></div>
+      <div><div class="label" style="margin-bottom:6px">Back up</div>
+        <button class="btn" data-act="export">Download backup (.json)</button></div>
+    </div></div>`);
+  $('#impFile').addEventListener('change',async e=>{
+    const f=e.target.files?.[0]; if(!f) return; const msg=$('#impMsg'); msg.hidden=false;
+    let data; try{ data=JSON.parse(await f.text()); }catch(_){ msg.textContent='That file isn\'t a Save File library.'; return; }
+    const incoming=(Array.isArray(data)?data:data.games||[]).filter(g=>g&&g.title);
+    if(!incoming.length){ msg.textContent='No games found in that file.'; return; }
+    const norm=t=>String(t).toLowerCase().replace(/[^a-z0-9]/g,'');
+    let added=0, updated=0; const touched=[];
+    const next=S.games.map(g=>({...g}));
+    for(const inc of incoming){
+      const ex=next.find(g=>(inc.steam&&g.steam&&String(g.steam)===String(inc.steam)) || (inc.xbox&&g.xbox&&g.xbox===inc.xbox) || norm(g.title)===norm(inc.title));
+      if(ex){
+        if(inc.hours!=null && +inc.hours > +(ex.hours||0)) ex.hours=inc.hours;
+        ['steam','xbox','lastPlayed','year'].forEach(k=>{ if(inc[k] && !ex[k]) ex[k]=inc[k]; });
+        if(inc.lastPlayed && (!ex.lastPlayed || inc.lastPlayed>ex.lastPlayed)) ex.lastPlayed=inc.lastPlayed;
+        if(!ex.img && !ex.steam && inc.img) ex.img=inc.img;
+        (inc.tags||[]).forEach(t=>{ ex.tags=ex.tags||[]; if(!ex.tags.includes(t)) ex.tags.push(t); });
+        ex.updatedAt=ex.updatedAt||Date.now(); touched.push(ex); updated++;
+      } else {
+        const g={status:'backlog',priority:2,tags:[],sessions:[],hltb:{},rating:null,review:'',top:0, ...inc, id:inc.id||newId(), createdAt:inc.createdAt||Date.now(), updatedAt:inc.updatedAt||Date.now()};
+        next.push(g); touched.push(g); added++;
+      }
+    }
+    msg.textContent=`Saving ${touched.length} games…`;
+    const ok=await commit(()=>{ S.games=next; return ()=>writeGames(touched); }, `Imported: ${added} new, ${updated} updated`);
+    msg.textContent= ok ? `Done: ${added} new games, ${updated} updated.` : 'Import failed. Nothing was changed.';
+  });
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify({profile:S.profile, games:S.games},null,1)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`savefile-backup-${today()}.json`; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
+}
+function confirmDelete(id){
+  const g=byId(id); if(!g) return; const n=(g.sessions||[]).length;
+  openDlg(`<div class="dlg"><div class="dlg-head"><h2>Delete ${esc(g.title)}?</h2></div>
+    <div class="dlg-body"><p style="margin:0">This removes the game, its review and ${n} logged session${n===1?'':'s'}. You can't undo it.</p></div>
+    <div class="dlg-foot"><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-reallydel="${esc(id)}">Delete game</button><button class="btn" data-open="${esc(id)}">Keep it</button></div></div>`);
+}
+
+/* ============ events ============ */
+document.addEventListener('click', async e=>{
+  const sp=e.target.closest('.review-full.spoiler'); if(sp){ sp.classList.remove('spoiler'); return; }
+  const t=e.target.closest('button'); if(!t) return; const d=t.dataset;
+  if(d.tab){ S.tab=d.tab; S.libLimit=120; try{history.replaceState(null,'','#'+d.tab);}catch(_){} render(); window.scrollTo({top:0}); return; }
+  if(d.close!==undefined){ closeDlg(); return; }
+  if(d.open){ detail(d.open); return; }
+  if(d.edit){ editForm(d.edit); return; }
+  if(d.logfor){ logForm(d.logfor); return; }
+  if(d.del){ confirmDelete(d.del); return; }
+  if(d.rate){ const g=byId(d.g); if(!g) return; const v=+d.rate; const r=(+g.rating===v)?null:v;
+    await saveGame({...g, rating:r, updatedAt:Date.now()}, r?'Rated '+(r/2)+' stars':'Rating cleared'); detail(g.id); return; }
+  if(d.reallydel){ const id=d.reallydel; closeDlg(); await commit(()=>{ S.games=S.games.filter(g=>g.id!==id); return ()=>removeGame(id); }, 'Deleted'); return; }
+  if(d.delsess){ const g=byId(d.g); if(!g) return; await saveGame({...g, sessions:(g.sessions||[]).filter((_,i)=>i!==+d.delsess), updatedAt:Date.now()}); detail(g.id); return; }
+  if(d.shelf){ S.lib.shelf=d.shelf; S.libLimit=120; persistLib(); render(); return; }
+  if(d.budget){ S.next.budget=d.budget; S.pickId=null; render(); return; }
+  if(d.start){ const g=byId(d.start); if(!g) return; S.pickId=null; await saveGame({...g, status:'playing', started:g.started||today(), updatedAt:Date.now()}, 'Moved to Playing'); return; }
+  const act=d.act;
+  if(act==='add') editForm();
+  else if(act==='log') logForm();
+  else if(act==='profile') profileForm();
+  else if(act==='preview'){ S.preview=!S.preview; render(); }
+  else if(act==='roll') roll();
+  else if(act==='login') loginForm();
+  else if(act==='logout'){ await sb.auth.signOut(); S.session=null; S.preview=false; render(); toast('Logged out'); }
+  else if(act==='tools') toolsForm();
+  else if(act==='export') exportData();
+  else if(act==='more'){ S.libLimit=(S.libLimit||120)+120; render(); }
+});
+document.addEventListener('input', e=>{
+  if(e.target.id==='libq'){ S.lib.q=e.target.value; const pos=e.target.selectionStart; clearTimeout(S._qt); S._qt=setTimeout(()=>{ render(); const q=$('#libq'); if(q){ q.focus(); try{q.setSelectionRange(pos,pos);}catch(_){} } },150); }
+});
+document.addEventListener('change', e=>{
+  const id=e.target.id;
+  if(id==='libsort'){ S.lib.sort=e.target.value; persistLib(); render(); }
+  if(id==='libtag'){ S.lib.tag=e.target.value; persistLib(); render(); }
+  if(id==='libplat'){ S.lib.plat=e.target.value; persistLib(); render(); }
+  if(id==='nextplat'){ S.next.plat=e.target.value; S.pickId=null; render(); }
+});
+function persistLib(){ try{ localStorage.setItem('sf.lib', JSON.stringify({shelf:S.lib.shelf,sort:S.lib.sort,tag:S.lib.tag,plat:S.lib.plat})); }catch(_){} }
+function roll(){
+  const pool=nextPool(); if(!pool.length) return;
+  let c=pool.filter(g=>g.id!==S.pickId); if(!c.length) c=pool;
+  const w=c.map(g=>(+g.priority||2)**2); let r=Math.random()*w.reduce((a,b)=>a+b,0);
+  let pick=c[0]; for(let i=0;i<c.length;i++){ r-=w[i]; if(r<=0){pick=c[i];break;} }
+  S.pickId=pick.id; render(); $('#pickPanel')?.classList.add('rolling');
+}
+
+/* ============ boot ============ */
+render();
+(async()=>{
+  if(sb){
+    const {data}=await sb.auth.getSession(); S.session=data.session||null;
+    sb.auth.onAuthStateChange((_e,session)=>{ S.session=session||null; render(); });
+  }
+  load();
+})();
+})();
+</script>
+</body>
+</html>
