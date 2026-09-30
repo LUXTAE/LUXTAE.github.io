@@ -372,6 +372,8 @@ a.plink:hover{text-decoration:underline}
 .yir-note{margin:0;font-size:12px;color:var(--faint)}
 @media (max-width:760px){ .yir-grid{grid-template-columns:1fr} }
 .tag.genre{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.strip{display:grid;grid-auto-flow:column;grid-auto-columns:120px;gap:12px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+@media (max-width:520px){ .strip{grid-auto-columns:100px} }
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -481,8 +483,16 @@ async function load(){
 }
 async function writeGames(list){
   if(DEMO){ localSave(); return; }
-  const rows=list.map(g=>{ const {id,...data}=g; return {id, data, updated_at:new Date().toISOString()}; });
-  for(let i=0;i<rows.length;i+=200){ const {error}=await sb.from('games').upsert(rows.slice(i,i+200)); if(error) throw error; }
+  const rows=list.map(g=>{ const {id,...data}=g; return {id, data}; });
+  for(let i=0;i<rows.length;i+=200){
+    const chunk=rows.slice(i,i+200);
+    // Merge on the server so an older open tab can't wipe fields added since it loaded.
+    const {error}=await sb.rpc('save_games',{rows:chunk});
+    if(error){
+      if(!/save_games|PGRST202|function/i.test(error.message||error.code||'')) throw error;
+      const r=await sb.from('games').upsert(chunk.map(x=>({...x, updated_at:new Date().toISOString()}))); if(r.error) throw r.error;
+    }
+  }
 }
 async function removeGame(id){
   if(DEMO){ localSave(); return; }
@@ -576,11 +586,13 @@ function viewProfile(){
   const reviews=revs.length?`<section><div class="sec-head"><h2>Recent reviews</h2></div><div class="reviews">${revs.map(reviewCard).join('')}</div></section>`:'';
   const topRated=G.filter(g=>+g.rating>=8).sort((a,b)=>+b.rating-+a.rating).slice(0,12);
   const rated=topRated.length?`<section><div class="sec-head"><h2>Highest rated</h2></div><div class="grid">${topRated.map(gameCard).join('')}</div></section>`:'';
+  const recent=G.filter(g=>g.lastPlayed && g.status!=='playing').sort((a,b)=>b.lastPlayed.localeCompare(a.lastPlayed)).slice(0,12);
+  const recentHtml=recent.length?`<section><div class="sec-head"><h2>Recently played</h2></div><div class="strip">${recent.map(g=>`<button class="card" data-open="${esc(g.id)}">${cover(g)}<span class="card-name">${esc(g.title)}</span><span class="card-meta"><span class="num" style="font-size:12px;color:var(--muted)">${esc(fmtDate(g.lastPlayed))}</span>${g.rating?stars(g.rating):''}</span></button>`).join('')}</div></section>`:'';
   const acts=allSessions().slice(0,6);
   const trs=tierRows(G).filter(r=>r.gs.length).slice(0,2);
   const tierPrev=trs.length?`<section><div class="sec-head"><h2>Tier list</h2><span class="hint">Top of my rankings</span><button class="btn ghost sm" data-tab="tiers">See the full list</button></div>${tierBoard(trs.map(r=>({...r,gs:r.gs.slice(0,12)})),false)}</section>`:'';
   const activity=acts.length?`<section><div class="sec-head"><h2>Recent sessions</h2><button class="btn ghost sm" data-tab="journal">Open journal</button></div><div class="panel rows">${acts.map(sessionRow).join('')}</div></section>`:'';
-  return hero+favs+playing+tierPrev+reviews+rated+activity;
+  return hero+favs+playing+recentHtml+tierPrev+reviews+rated+activity;
 }
 function reviewCard(g){
   return `<button class="review" data-open="${esc(g.id)}">${cover(g)}<div class="review-body"><div class="card-name">${esc(g.title)}</div><div class="card-meta">${stars(g.rating)}${pill(g.status)}</div><p class="review-text ${g.spoiler?'spoiler':''}">${esc(g.review)}</p></div></button>`;
@@ -589,7 +601,9 @@ function libFiltered(){
   const L=S.lib, q=L.q.trim().toLowerCase();
   const G=VG().filter(g=>{
     if(L.shelf==='played' && !PLAYED.includes(g.status)) return false;
-    if(!['all','played'].includes(L.shelf) && g.status!==L.shelf) return false;
+    if(L.shelf==='reviewed' && !g.review) return false;
+    if(L.shelf==='rated' && !+g.rating) return false;
+    if(!['all','played','reviewed','rated'].includes(L.shelf) && g.status!==L.shelf) return false;
     if(L.tag && !(g.tags||[]).includes(L.tag)) return false;
     if(L.plat && g.platform!==L.plat) return false;
     if(L.genre && !(g.genres||[]).includes(L.genre)) return false;
@@ -601,8 +615,8 @@ function libFiltered(){
 }
 function viewLibrary(){
   if(!VG().length) return emptyAll();
-  const cnt=k=>k==='all'?VG().length:k==='played'?VG().filter(g=>PLAYED.includes(g.status)).length:VG().filter(g=>g.status===k).length;
-  const shelves=[['all','All'],['playing','Playing'],['backlog','Backlog'],['wishlist','Wishlist'],['played','Played']];
+  const cnt=k=>k==='all'?VG().length:k==='played'?VG().filter(g=>PLAYED.includes(g.status)).length:k==='reviewed'?VG().filter(g=>g.review).length:k==='rated'?VG().filter(g=>+g.rating).length:VG().filter(g=>g.status===k).length;
+  const shelves=[['all','All'],['playing','Playing'],['backlog','Backlog'],['wishlist','Wishlist'],['played','Played'],['reviewed','Reviewed'],['rated','Rated']];
   const tags=[...new Set(VG().flatMap(g=>g.tags||[]))].sort();
   const plats=[...new Set(VG().map(g=>g.platform).filter(Boolean))].sort();
   const gcount={}; VG().forEach(g=>(g.genres||[]).forEach(x=>gcount[x]=(gcount[x]||0)+1));
