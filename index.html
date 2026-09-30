@@ -295,6 +295,22 @@ textarea.input{resize:vertical;min-height:90px;line-height:1.5}
 .rate-info h3{font-size:22px}
 .rater.big .half{font-size:44px}
 @media (max-width:520px){ .rate-body{grid-template-columns:1fr} .rate-cover{max-width:160px;margin:0 auto;width:100%} .rater.big .half{font-size:40px} }
+.tiers{display:flex;flex-direction:column;gap:4px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.tier-row{display:grid;grid-template-columns:64px 1fr;background:var(--surface);min-height:84px;transition:background .12s}
+.tier-row.drop-hover,.tier-pool.drop-hover{background:var(--accent-soft)}
+.tier-label{background:var(--tc);color:#16181d;display:grid;place-items:center;font:700 26px var(--f-display)}
+.tier-items{display:flex;flex-wrap:wrap;gap:6px;padding:6px;align-content:flex-start;min-width:0}
+.tier-item{border:2px solid transparent;border-radius:7px;padding:0;background:none;width:60px;flex:none;cursor:pointer}
+.tier-item .cover{border-radius:5px;padding:4px}
+.tier-item .cover .cv-plat{display:none}
+.tier-item .cover .cv-title{font-size:9px}
+.tier-item.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.tier-item.dragging{opacity:.4}
+.tier-empty{color:var(--faint);font-size:13px;align-self:center;padding:0 8px}
+.tier-pool{display:flex;flex-direction:column;gap:10px;margin-top:14px;padding:12px;border:1.5px dashed var(--line);border-radius:var(--r);transition:background .12s}
+.tier-items.pool .tier-item{width:68px}
+.tier-badge{display:inline-grid;place-items:center;min-width:26px;height:22px;padding:0 6px;border-radius:5px;background:var(--tc);color:#16181d;font:700 13px var(--f-display)}
+@media (max-width:520px){ .tier-row{grid-template-columns:44px 1fr;min-height:78px} .tier-label{font-size:20px} .tier-item{width:48px} .tier-items.pool .tier-item{width:56px} }
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -335,7 +351,8 @@ const STATUSES = [
 const PLAYED = ['played','beaten','completed','shelved','abandoned'];
 const SLABEL = Object.fromEntries(STATUSES.map(s=>[s.k,s.l]));
 const PLATFORMS = ['PC','PlayStation 5','PlayStation 4','Xbox Series X|S','Xbox One','Nintendo Switch','Nintendo Switch 2','Steam Deck','Mobile','Retro'];
-const TABS = [{k:'profile',l:'Profile'},{k:'library',l:'Library'},{k:'journal',l:'Journal'},{k:'next',l:'Up Next'},{k:'stats',l:'Stats'}];
+const TABS = [{k:'profile',l:'Profile'},{k:'library',l:'Library'},{k:'tiers',l:'Tier List'},{k:'journal',l:'Journal'},{k:'next',l:'Up Next'},{k:'stats',l:'Stats'}];
+const TIERS = [['S','#ff6b6b'],['A','#ffa94d'],['B','#ffd43b'],['C','#8ce99a'],['D','#74c0fc'],['F','#b197fc']];
 const LOCAL_KEY = 'savefile.data.v1';
 
 const sb = (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY && window.supabase)
@@ -444,7 +461,7 @@ function render(){
   const app=$('#app');
   if(!S.loaded){ app.innerHTML=`<div class="empty"><strong>Loading…</strong></div>`; return; }
   if(S.loadErr){ app.innerHTML=`<div class="panel empty"><strong>Couldn't load the game log</strong><span>Reload the page to try again.</span></div>`; return; }
-  const v={profile:viewProfile, library:viewLibrary, journal:viewJournal, next:viewNext, stats:viewStats}[S.tab]();
+  const v={profile:viewProfile, library:viewLibrary, tiers:viewTiers, journal:viewJournal, next:viewNext, stats:viewStats}[S.tab]();
   const demoBanner = DEMO ? `<div class="banner warn"><span><b>Preview mode.</b> Supabase isn't connected yet, so changes save only in this browser. Finish the setup steps to publish.</span><span class="spacer"></span><button class="btn sm" data-act="tools">Import / export</button></div>` : '';
   app.innerHTML = demoBanner + (S.preview?`<div class="banner">You're seeing what visitors see.<span class="spacer"></span><button class="btn sm" data-act="preview">Back to editing</button></div>`:'') + v;
 }
@@ -493,8 +510,10 @@ function viewProfile(){
   const topRated=G.filter(g=>+g.rating>=8).sort((a,b)=>+b.rating-+a.rating).slice(0,12);
   const rated=topRated.length?`<section><div class="sec-head"><h2>Highest rated</h2></div><div class="grid">${topRated.map(gameCard).join('')}</div></section>`:'';
   const acts=allSessions().slice(0,6);
+  const trs=tierRows(G).filter(r=>r.gs.length).slice(0,2);
+  const tierPrev=trs.length?`<section><div class="sec-head"><h2>Tier list</h2><span class="hint">Top of my rankings</span><button class="btn ghost sm" data-tab="tiers">See the full list</button></div>${tierBoard(trs.map(r=>({...r,gs:r.gs.slice(0,12)})),false)}</section>`:'';
   const activity=acts.length?`<section><div class="sec-head"><h2>Recent sessions</h2><button class="btn ghost sm" data-tab="journal">Open journal</button></div><div class="panel rows">${acts.map(sessionRow).join('')}</div></section>`:'';
-  return hero+favs+playing+reviews+rated+activity;
+  return hero+favs+playing+tierPrev+reviews+rated+activity;
 }
 function reviewCard(g){
   return `<button class="review" data-open="${esc(g.id)}">${cover(g)}<div class="review-body"><div class="card-name">${esc(g.title)}</div><div class="card-meta">${stars(g.rating)}${pill(g.status)}</div><p class="review-text ${g.spoiler?'spoiler':''}">${esc(g.review)}</p></div></button>`;
@@ -575,6 +594,58 @@ function barRows(items, fmt){
   const max=Math.max(1,...items.map(i=>i[1]));
   return items.map(([l,v])=>`<div class="bar-row"><span class="bl" title="${esc(l)}">${esc(l)}</span><div class="bar-track"><div class="bar-fill" style="width:${v/max*100}%"></div></div><span class="bv">${fmt(v)}</span></div>`).join('');
 }
+/* ============ tier list ============ */
+function tierRows(G){ return TIERS.map(([t,c])=>({t,c,gs:G.filter(g=>g.tier===t).sort((a,b)=>(+a.tierPos||0)-(+b.tierPos||0))})); }
+function tierItem(g){
+  const w=canWrite();
+  return `<button class="tier-item${S.tierSel===g.id?' sel':''}" ${w?`draggable="true" data-tg="${esc(g.id)}"`:`data-open="${esc(g.id)}"`} title="${esc(g.title)}" aria-label="${esc(g.title)}">${cover(g)}</button>`;
+}
+function tierBoard(rows, editable){
+  return `<div class="tiers">${rows.map(r=>`<div class="tier-row" ${editable?`data-tierdrop="${r.t}"`:''}>
+      <div class="tier-label" style="--tc:${r.c}">${r.t}</div>
+      <div class="tier-items">${r.gs.map(tierItem).join('') || (editable?`<span class="tier-empty">${S.tierSel?'Tap here to place it':'Drag or tap games here'}</span>`:'')}</div>
+    </div>`).join('')}</div>`;
+}
+function viewTiers(){
+  const G=S.games, rows=tierRows(G), any=rows.some(r=>r.gs.length);
+  if(!canWrite()){
+    return any ? `<section><div class="sec-head"><h2>Tier list</h2><span class="hint">Every game I've ranked, best to worst</span></div>${tierBoard(rows.filter(r=>r.gs.length),false)}</section>`
+      : `<div class="panel empty"><strong>No tier list yet</strong><span>Check back soon.</span></div>`;
+  }
+  const q=(S.tierQ||'').trim().toLowerCase();
+  const pool=G.filter(g=>!g.tier && !['backlog','wishlist'].includes(g.status) && (!q || g.title.toLowerCase().includes(q)))
+    .sort((a,b)=>(+b.rating||0)-(+a.rating||0) || totalHours(b)-totalHours(a));
+  const shown=pool.slice(0, S.tierLimit||48);
+  return `<section>
+    <div class="sec-head"><h2>Tier list</h2><span class="hint">${S.tierSel?`Placing <b>${esc(byId(S.tierSel)?.title||'')}</b>. Tap a row to drop it, or tap it again to cancel.`:'Drag a game into a row, or tap a game then tap a row.'}</span></div>
+    ${tierBoard(rows,true)}
+    <div class="tier-pool" data-tierdrop="">
+      <div class="sec-head"><h2 style="font-size:15px">Unranked</h2><span class="hint">${pool.length} game${pool.length===1?'':'s'} · best rated first</span><span class="spacer"></span>
+        <input id="tierq" class="input" type="search" placeholder="Find a game" value="${esc(S.tierQ||'')}" aria-label="Find a game to rank" style="min-width:0;width:200px;max-width:100%"></div>
+      <div class="tier-items pool">${shown.map(tierItem).join('') || '<span class="tier-empty">Everything is ranked.</span>'}</div>
+      ${pool.length>shown.length?`<button class="btn sm" data-act="tiermore" style="align-self:center">Show more (${pool.length-shown.length})</button>`:''}
+    </div>
+  </section>`;
+}
+async function placeTier(id, tier, beforeId){
+  const g=byId(id); if(!g) return;
+  S.tierSel=null;
+  let pos=Date.now();
+  if(tier){
+    const list=S.games.filter(x=>x.tier===tier && x.id!==id).sort((a,b)=>(+a.tierPos||0)-(+b.tierPos||0));
+    const bi=beforeId?list.findIndex(x=>x.id===beforeId):-1;
+    if(bi>=0){ const prev=bi>0?(+list[bi-1].tierPos||0):(+list[bi].tierPos||0)-1000; pos=(prev+(+list[bi].tierPos||0))/2; }
+    else pos=(list.length?(+list[list.length-1].tierPos||0):0)+1000;
+  }
+  if((g.tier||'')===(tier||'') && !beforeId){ render(); return; }
+  await saveGame({...g, tier:tier||'', tierPos:tier?pos:0, updatedAt:Date.now()}, tier?`${g.title} → ${tier} tier`:`${g.title} unranked`);
+}
+document.addEventListener('dragstart', e=>{ const it=e.target.closest?.('[data-tg]'); if(!it) return; e.dataTransfer.setData('text/plain', it.dataset.tg); e.dataTransfer.effectAllowed='move'; it.classList.add('dragging'); });
+document.addEventListener('dragend', e=>{ e.target.closest?.('[data-tg]')?.classList.remove('dragging'); document.querySelectorAll('.drop-hover').forEach(x=>x.classList.remove('drop-hover')); });
+document.addEventListener('dragover', e=>{ const z=e.target.closest?.('[data-tierdrop]'); if(!z) return; e.preventDefault(); document.querySelectorAll('.drop-hover').forEach(x=>{ if(x!==z) x.classList.remove('drop-hover'); }); z.classList.add('drop-hover'); });
+document.addEventListener('drop', e=>{ const z=e.target.closest?.('[data-tierdrop]'); if(!z) return; e.preventDefault(); z.classList.remove('drop-hover');
+  const id=e.dataTransfer.getData('text/plain'); if(!id) return; const before=e.target.closest('[data-tg]')?.dataset.tg; placeTier(id, z.dataset.tierdrop, before&&before!==id?before:null); });
+
 function viewStats(){
   if(!S.games.length) return emptyAll();
   const st=stats(), G=S.games;
@@ -659,7 +730,7 @@ function detail(id){
         ?`<div class="cover-edit" id="quickDrop">${cover(g,g.top||'')}<label class="btn sm" for="quickCover" style="justify-content:center">Upload cover</label><input type="file" accept="image/*" id="quickCover" class="vh"><span style="font-size:12px;color:var(--muted);text-align:center">or paste an image</span></div>`
         :cover(g,g.top||'')}
         <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
-        <div class="card-meta">${pill(g.status)}${canWrite()
+        <div class="card-meta">${g.tier?`<span class="tier-badge" style="--tc:${(TIERS.find(t=>t[0]===g.tier)||[])[1]||'#ccc'}" title="${esc(g.tier)} tier">${esc(g.tier)}</span>`:''}${pill(g.status)}${canWrite()
           ?`<span class="rater" role="group" aria-label="Rate ${esc(g.title)}">${Array.from({length:10},(_,i)=>i+1).map(v=>`<button class="half ${v%2?'l':'r'} ${v<=(+g.rating||0)?'on':''}" data-rate="${v}" data-g="${esc(g.id)}" aria-label="${v/2} stars"><span>★</span></button>`).join('')}</span><span class="rate-val">${g.rating?(+g.rating/2).toFixed(1):'Tap to rate'}</span>`
           :(g.rating!=null&&g.rating!==''?stars(g.rating,true)+`<span class="num" style="color:var(--muted)">${(+g.rating/2).toFixed(1)}</span>`:'')}</div>
         <div class="kv">${g.platform?`<span>Platform <b>${esc(g.platform)}</b></span>`:''}${g.year?`<span>Released <b class="num">${esc(g.year)}</b></span>`:''}${g.started?`<span>Started <b>${esc(fmtDate(g.started))}</b></span>`:''}${g.finished?`<span>Finished <b>${esc(fmtDate(g.finished))}</b></span>`:''}${g.lastPlayed?`<span>Last played <b>${esc(fmtDate(g.lastPlayed))}</b></span>`:''}</div>
@@ -858,6 +929,10 @@ function confirmDelete(id){
 /* ============ events ============ */
 document.addEventListener('click', async e=>{
   const sp=e.target.closest('.review-full.spoiler'); if(sp){ sp.classList.remove('spoiler'); return; }
+  const tg=e.target.closest('[data-tg]');
+  if(tg && canWrite()){ S.tierSel = S.tierSel===tg.dataset.tg ? null : tg.dataset.tg; render(); return; }
+  const trow=e.target.closest('[data-tierdrop]');
+  if(trow && S.tierSel && canWrite() && !e.target.closest('button,input')){ placeTier(S.tierSel, trow.dataset.tierdrop); return; }
   const t=e.target.closest('button'); if(!t) return; const d=t.dataset;
   if(d.tab){ S.tab=d.tab; S.libLimit=120; try{history.replaceState(null,'','#'+d.tab);}catch(_){} render(); window.scrollTo({top:0}); return; }
   if(d.close!==undefined){ closeDlg(); return; }
@@ -883,6 +958,7 @@ document.addEventListener('click', async e=>{
   else if(act==='tools') toolsForm();
   else if(act==='export') exportData();
   else if(act==='more'){ S.libLimit=(S.libLimit||120)+120; render(); }
+  else if(act==='tiermore'){ S.tierLimit=(S.tierLimit||48)+48; render(); }
   else if(act==='rate') rateMode();
   else if(act==='rskip'){ RATE.i++; rateStep(); }
   else if(act==='rback'){ RATE.i=Math.max(0,RATE.i-1); rateStep(); }
@@ -893,6 +969,7 @@ document.addEventListener('click', async e=>{
     RATE.list[RATE.i]=ng; saveGame(ng); rateStep(); }
 });
 document.addEventListener('input', e=>{
+  if(e.target.id==='tierq'){ S.tierQ=e.target.value; S.tierLimit=48; const pos=e.target.selectionStart; clearTimeout(S._tq); S._tq=setTimeout(()=>{ render(); const q=$('#tierq'); if(q){ q.focus(); try{q.setSelectionRange(pos,pos);}catch(_){} } },150); }
   if(e.target.id==='libq'){ S.lib.q=e.target.value; const pos=e.target.selectionStart; clearTimeout(S._qt); S._qt=setTimeout(()=>{ render(); const q=$('#libq'); if(q){ q.focus(); try{q.setSelectionRange(pos,pos);}catch(_){} } },150); }
 });
 document.addEventListener('change', e=>{
