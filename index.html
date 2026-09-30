@@ -375,6 +375,20 @@ a.plink:hover{text-decoration:underline}
 .strip{display:grid;grid-auto-flow:column;grid-auto-columns:120px;gap:12px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
 @media (max-width:520px){ .strip{grid-auto-columns:100px} }
 .theme-btn{font-size:13px}
+.about{margin:0;color:var(--ink);font-size:14px;line-height:1.55}
+.mc{display:inline-grid;place-items:center;min-width:30px;padding:1px 6px;border-radius:5px;background:#66cc33;color:#0b1a04;font:700 12px var(--f-mono);vertical-align:1px}
+.shots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.shots img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px;display:block;background:var(--surface-2)}
+@media (max-width:520px){ .shots{grid-template-columns:repeat(2,minmax(0,1fr))} }
+button.slot-empty{background:none;cursor:pointer;font:inherit;color:var(--muted)}
+button.slot-empty:hover{border-color:var(--accent);color:var(--accent)}
+.fav-slots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.fav-slot{border:2px solid transparent;border-radius:10px;padding:2px;background:none}
+.fav-slot.on{border-color:var(--accent)}
+.fav-slot .slot-empty{aspect-ratio:3/4}
+.fav-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px}
+.fav-grid .cv-plat{display:none}
+.fav-grid .card-name{font-size:12px}
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -580,9 +594,10 @@ function viewProfile(){
   if(!G.length) return hero+emptyAll();
   const top=[1,2,3,4].map(n=>G.find(g=>+g.top===n));
   const nFav=top.filter(Boolean).length;
-  const favs = !nFav ? (canWrite()?`<section><div class="panel empty" style="padding:18px"><strong>Pick your four favorites</strong><span>Open any game, click Edit, and choose a Favorite slot. They show at the top of your profile.</span></div></section>`:'')
+  const favs = !nFav ? (canWrite()?`<section><div class="panel empty" style="padding:18px"><strong>Pick your four favorites</strong><span>They show at the top of your profile for everyone who visits.</span><button class="btn primary" data-favslot="1">Choose favorites</button></div></section>`:'')
     : `<section><div class="sec-head"><h2>Favorite games</h2><span class="hint">The four that define my taste</span></div>
-    <div class="top4">${top.map((g,i)=> g?`<button class="card" data-open="${esc(g.id)}">${cover(g,i+1)}</button>`:(canWrite()?`<div class="slot-empty">Empty slot</div>`:'<div></div>')).join('')}</div></section>`;
+    <div class="top4">${top.map((g,i)=> g?`<button class="card" data-open="${esc(g.id)}">${cover(g,i+1)}</button>`:(canWrite()?`<button class="slot-empty" data-favslot="${i+1}">+ Add favorite</button>`:'<div></div>')).join('')}</div>
+    ${canWrite()?'<div><button class="btn ghost sm" data-favslot="1" style="margin-left:-8px">Change favorites</button></div>':''}</section>`;
   const playing=st.playing.length?`<section><div class="sec-head"><h2>Currently playing</h2></div><div class="grid">${st.playing.map(gameCard).join('')}</div></section>`:'';
   const revs=G.filter(g=>g.review).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).slice(0,4);
   const reviews=revs.length?`<section><div class="sec-head"><h2>Recent reviews</h2></div><div class="reviews">${revs.map(reviewCard).join('')}</div></section>`:'';
@@ -894,6 +909,8 @@ function detail(id){
         ${(g.tags||[]).length?`<div class="card-meta">${g.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
         <div class="links">${g.steam?`<a href="https://store.steampowered.com/app/${esc(g.steam)}" target="_blank" rel="noopener">Steam ↗</a>`:''}<a href="https://howlongtobeat.com/?q=${q}" target="_blank" rel="noopener">HowLongToBeat ↗</a><a href="https://backloggd.com/search/games/${q}" target="_blank" rel="noopener">Backloggd ↗</a></div>
       </div></div>
+      ${g.about?`<p class="about">${esc(g.about)}${g.metacritic?` <span class="mc" title="Metacritic score">${esc(g.metacritic)}</span>`:''}</p>`:(g.metacritic?`<p class="about"><span class="mc" title="Metacritic score">Metacritic ${esc(g.metacritic)}</span></p>`:'')}
+      ${(g.shots||[]).length?`<div class="shots">${g.shots.slice(0,4).map(u=>`<a href="${esc(String(u).replace('.600x338','.1920x1080'))}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Screenshot of ${esc(g.title)}" loading="lazy" referrerpolicy="no-referrer"></a>`).join('')}</div>`:''}
       ${g.review?`<div><div class="label" style="margin-bottom:6px">Review${g.spoiler?' · contains spoilers':''}</div><p class="review-full ${g.spoiler?'spoiler':''}" ${g.spoiler?'title="Click to reveal"':''}>${esc(g.review)}</p></div>`:''}
       ${(th||H.main||H.extra||H.comp)?`<div><div class="label" style="margin-bottom:8px">Time</div><div class="time">${trow('Played',th,true)}${trow('Main story',+H.main)}${trow('Main + extras',+H.extra)}${trow('Completionist',+H.comp)}</div></div>`:''}
       ${sess.length?`<div><div class="label" style="margin-bottom:6px">Sessions</div><div class="panel rows">${sess.map(({s,i})=>`<div class="row" style="grid-template-columns:1fr auto auto"><div class="row-main"><div class="row-sub" style="color:var(--ink);white-space:normal">${esc(s.n||'Played a session')}</div></div><span class="num" style="font-size:13px">${fmtH(s.h)}</span><span class="j-date">${esc(fmtDate(s.d))}${canWrite()?` <button class="btn ghost sm" data-delsess="${i}" data-g="${esc(g.id)}" aria-label="Remove session">✕</button>`:''}</span></div>`).join('')}</div></div>`:''}
@@ -1153,6 +1170,10 @@ document.addEventListener('click', async e=>{
   if(d.close!==undefined){ closeDlg(); return; }
   if(d.share){ const url=location.origin+location.pathname+'#g-'+d.share;
     try{ await navigator.clipboard.writeText(url); toast('Link copied'); }catch(_){ toast(url); } return; }
+  if(d.favslot){ S.favQ=''; favPicker(d.favslot); return; }
+  if(d.favpickSlot){ favPicker(d.favpickSlot); return; }
+  if(d.favpick){ await favSet(d.favpick, S.favSlot||1); return; }
+  if(d.favclear){ const g=S.games.find(x=>+x.top===+d.favclear); if(g){ await saveGame({...g, top:0, updatedAt:Date.now()}, 'Slot cleared'); } favPicker(d.favclear); return; }
   if(d.open && S.selMode && canWrite() && t.classList.contains('card') && S.tab==='library'){ S.sel=S.sel||new Set(); S.sel.has(d.open)?S.sel.delete(d.open):S.sel.add(d.open); render(); return; }
   if(d.open){ detail(d.open); return; }
   if(d.edit){ editForm(d.edit); return; }
@@ -1195,6 +1216,7 @@ document.addEventListener('click', async e=>{
     RATE.list[RATE.i]=ng; saveGame(ng); rateStep(); }
 });
 document.addEventListener('input', e=>{
+  if(e.target.id==='favq'){ S.favQ=e.target.value; clearTimeout(S._fq); S._fq=setTimeout(()=>favPicker(S.favSlot),150); }
   if(e.target.id==='tierq'){ S.tierQ=e.target.value; S.tierLimit=48; const pos=e.target.selectionStart; clearTimeout(S._tq); S._tq=setTimeout(()=>{ render(); const q=$('#tierq'); if(q){ q.focus(); try{q.setSelectionRange(pos,pos);}catch(_){} } },150); }
   if(e.target.id==='libq'){ S.lib.q=e.target.value; const pos=e.target.selectionStart; clearTimeout(S._qt); S._qt=setTimeout(()=>{ render(); const q=$('#libq'); if(q){ q.focus(); try{q.setSelectionRange(pos,pos);}catch(_){} } },150); }
 });
@@ -1328,6 +1350,28 @@ document.getElementById('themeBtn')?.addEventListener('click',()=>{
   applyTheme();
 });
 applyTheme();
+/* ============ favorites picker ============ */
+function favPicker(slot){
+  S.favSlot=+slot||1;
+  const slots=[1,2,3,4].map(n=>S.games.find(g=>+g.top===n));
+  const q=(S.favQ||'').trim().toLowerCase();
+  const pool=S.games.filter(g=>!q || g.title.toLowerCase().includes(q)).sort((a,b)=>(+b.rating||0)-(+a.rating||0) || totalHours(b)-totalHours(a)).slice(0,30);
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><h2>Favorite games</h2><button class="btn ghost sm" data-close>Done</button></div>
+    <div class="dlg-body">
+      <div class="fav-slots">${slots.map((g,i)=>`<button class="fav-slot${S.favSlot===i+1?' on':''}" data-favpick-slot="${i+1}" aria-pressed="${S.favSlot===i+1}">
+          ${g?cover(g,i+1):`<div class="slot-empty">Slot ${i+1}</div>`}</button>`).join('')}</div>
+      <p style="margin:0;color:var(--muted);font-size:14px">Choosing for <b>slot ${S.favSlot}</b>. Tap a game below to put it there.${slots[S.favSlot-1]?` <button class="btn ghost sm" data-favclear="${S.favSlot}">Clear slot</button>`:''}</p>
+      <input class="input" id="favq" type="search" placeholder="Search your games" value="${esc(S.favQ||'')}" autocomplete="off">
+      <div class="fav-grid">${pool.map(g=>`<button class="card" data-favpick="${esc(g.id)}">${cover(g)}<span class="card-name">${esc(g.title)}</span></button>`).join('')||'<span class="hint">No games match.</span>'}</div>
+    </div></div>`);
+  setTimeout(()=>{ const f=$('#favq'); if(f && S.favQ){ f.focus(); f.setSelectionRange(f.value.length,f.value.length); } },20);
+}
+async function favSet(id, slot){
+  const g=byId(id); if(!g) return;
+  const ok=await saveGame({...g, top:slot, updatedAt:Date.now()}, `${g.title} is favorite #${slot}`);
+  if(ok){ S.favQ=''; const next=[1,2,3,4].find(n=>!S.games.some(x=>+x.top===n)); favPicker(next||slot); }
+}
 /* ============ boot ============ */
 render();
 (async()=>{
