@@ -340,6 +340,18 @@ textarea.input{resize:vertical;min-height:90px;line-height:1.5}
 .card.is-hidden .cover{opacity:.45}
 .hid-tag{position:absolute;top:34px;left:8px;z-index:2;font:600 10px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;background:var(--ink);color:var(--bg);padding:2px 6px;border-radius:4px}
 @media (max-width:520px){ #ownerBar{width:100%;gap:6px} #ownerBar .btn{flex:1 1 auto;justify-content:center;padding-inline:8px} }
+.avatar{overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.avatar.sm{width:56px;height:56px;font-size:22px;border-radius:12px}
+.plinks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.plink{font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:3px 10px;border-radius:999px;text-decoration:none;white-space:nowrap}
+a.plink:hover{text-decoration:underline}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.swatch{cursor:pointer;position:relative}
+.swatch input{position:absolute;opacity:0;width:1px;height:1px}
+.swatch span:first-of-type{display:block;width:30px;height:30px;border-radius:50%;background:var(--sw);box-shadow:0 0 0 2px var(--surface),0 0 0 4px transparent}
+.swatch input:checked + span{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
+.swatch input:focus-visible + span{outline:2px solid var(--accent);outline-offset:4px}
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -436,7 +448,7 @@ function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; cle
 function localLoad(){ try{ return JSON.parse(localStorage.getItem(LOCAL_KEY)||'null'); }catch(e){ return null; } }
 function localSave(){ try{ localStorage.setItem(LOCAL_KEY, JSON.stringify({profile:S.profile, games:S.games})); }catch(e){ toast('This browser is out of space. Remove a few uploaded covers.'); throw e; } }
 async function load(){
-  if(DEMO){ const d=localLoad(); if(d){ S.games=d.games||[]; S.profile={...S.profile,...(d.profile||{})}; } S.loaded=true; render(); return; }
+  if(DEMO){ const d=localLoad(); if(d){ S.games=d.games||[]; S.profile={...S.profile,...(d.profile||{})}; } S.loaded=true; render(); if(location.hash.startsWith('#g-')) detail(location.hash.slice(3)); return; }
   try{
     const [g,p] = await Promise.all([ sb.from('games').select('id,data'), sb.from('profile').select('data').eq('id',1).maybeSingle() ]);
     if(g.error) throw g.error;
@@ -445,6 +457,7 @@ async function load(){
     S.loaded=true; S.loadErr=false;
   }catch(e){ console.error(e); S.loadErr=true; S.loaded=true; }
   render();
+  if(location.hash.startsWith('#g-')) detail(location.hash.slice(3));
 }
 async function writeGames(list){
   if(DEMO){ localSave(); return; }
@@ -479,6 +492,7 @@ function saveGame(g, msg){ return commit(()=>{ const i=S.games.findIndex(x=>x.id
 
 /* ============ render ============ */
 function render(){
+  applyAccent();
   $('#brandOwner').textContent = S.profile.name ? '· '+S.profile.name : '';
   document.title = S.profile.name ? `${S.profile.name} · Save File` : 'Save File';
   $('#tabs').innerHTML = TABS.map(t=>`<button class="tab" data-tab="${t.k}" ${S.tab===t.k?'aria-current="page"':''}>${t.l}</button>`).join('');
@@ -518,10 +532,10 @@ function gameCard(g){
 }
 function viewProfile(){
   const st=stats(), G=VG();
-  const initial=(S.profile.name||'?').trim().charAt(0).toUpperCase()||'?';
-  const hero=`<section class="hero"><div class="avatar">${esc(initial)}</div><div>
+  const hero=`<section class="hero">${avatarHtml()}<div>
       <h1>${esc(S.profile.name||'My Save File')}</h1>
       <p>${esc(S.profile.bio||(canWrite()?'Add a short bio so visitors know what you play.':'Games played, rated and reviewed.'))}</p>
+      ${profileLinks()}
       ${canWrite()?'<button class="btn ghost sm" data-act="profile" style="margin-top:6px;margin-left:-8px">Edit profile</button>':''}
     </div></section>
     <div class="statline">
@@ -533,8 +547,10 @@ function viewProfile(){
     </div>`;
   if(!G.length) return hero+emptyAll();
   const top=[1,2,3,4].map(n=>G.find(g=>+g.top===n));
-  const favs=`<section><div class="sec-head"><h2>Favorite games</h2><span class="hint">The four that define my taste</span></div>
-    <div class="top4">${top.map((g,i)=> g?`<button class="card" data-open="${esc(g.id)}">${cover(g,i+1)}</button>`:`<div class="slot-empty">${canWrite()?'Pick a favorite in any game\'s edit screen':'Empty slot'}</div>`).join('')}</div></section>`;
+  const nFav=top.filter(Boolean).length;
+  const favs = !nFav ? (canWrite()?`<section><div class="panel empty" style="padding:18px"><strong>Pick your four favorites</strong><span>Open any game, click Edit, and choose a Favorite slot. They show at the top of your profile.</span></div></section>`:'')
+    : `<section><div class="sec-head"><h2>Favorite games</h2><span class="hint">The four that define my taste</span></div>
+    <div class="top4">${top.map((g,i)=> g?`<button class="card" data-open="${esc(g.id)}">${cover(g,i+1)}</button>`:(canWrite()?`<div class="slot-empty">Empty slot</div>`:'<div></div>')).join('')}</div></section>`;
   const playing=st.playing.length?`<section><div class="sec-head"><h2>Currently playing</h2></div><div class="grid">${st.playing.map(gameCard).join('')}</div></section>`:'';
   const revs=G.filter(g=>g.review).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).slice(0,4);
   const reviews=revs.length?`<section><div class="sec-head"><h2>Recent reviews</h2></div><div class="reviews">${revs.map(reviewCard).join('')}</div></section>`:'';
@@ -766,17 +782,18 @@ function wireDrop(el, handler){
 const dlg=$('#dlg');
 function openDlg(html){ dlg.innerHTML=html; if(!dlg.open){ try{dlg.showModal();}catch(e){dlg.setAttribute('open','');} } }
 function closeDlg(){ onPasteImage=null; try{dlg.close();}catch(e){dlg.removeAttribute('open');} }
-dlg.addEventListener('close',()=>{ onPasteImage=null; });
+dlg.addEventListener('close',()=>{ onPasteImage=null; if(location.hash.startsWith('#g-')){ try{ history.replaceState(null,'','#'+S.tab); }catch(_){} } });
 dlg.addEventListener('click',e=>{ if(e.target===dlg) closeDlg(); });
 
 function detail(id){
   const g=byId(id); if(!g) return;
+  try{ history.replaceState(null,'','#g-'+id); }catch(_){}
   const th=totalHours(g), H=g.hltb||{}, tmax=Math.max(th,+H.main||0,+H.extra||0,+H.comp||0,1);
   const trow=(l,v,you)=>v?`<div class="bar-row"><span class="bl">${l}</span><div class="bar-track"><div class="bar-fill ${you?'you':''}" style="width:${v/tmax*100}%"></div></div><span class="bv">${fmtH(v)}</span></div>`:'';
   const q=encodeURIComponent(g.title);
   const sess=(g.sessions||[]).map((s,i)=>({s,i})).sort((a,b)=>(b.s.d||'').localeCompare(a.s.d||''));
   openDlg(`<div class="dlg">
-    <div class="dlg-head"><h2>${esc(g.title)}</h2><button class="btn ghost sm" data-close>Close</button></div>
+    <div class="dlg-head"><h2>${esc(g.title)}</h2><button class="btn ghost sm" data-share="${esc(g.id)}">Copy link</button><button class="btn ghost sm" data-close>Close</button></div>
     <div class="dlg-body">
       <div class="detail">${canWrite()
         ?`<div class="cover-edit" id="quickDrop">${cover(g,g.top||'')}<label class="btn sm" for="quickCover" style="justify-content:center">Upload cover</label><input type="file" accept="image/*" id="quickCover" class="vh"><span style="font-size:12px;color:var(--muted);text-align:center">or paste an image</span></div>`
@@ -905,16 +922,73 @@ function logForm(gid){
     closeDlg(); await saveGame(ng, 'Logged '+fmtH(h)+' of '+g.title);
   });
 }
+const ACCENTS=[['blue','Blue','#2E57F0','#7D95FF'],['red','Red','#D63447','#FF7A85'],['orange','Orange','#D9480F','#FF9F5A'],['green','Green','#2B8A3E','#63D683'],['purple','Purple','#7048E8','#B197FC'],['pink','Pink','#C2255C','#FF8CC6'],['teal','Teal','#0B7285','#4FD1E0']];
+const LINK_KINDS=[['steam','Steam profile','https://steamcommunity.com/id/…'],['xbox','Xbox gamertag','Your gamertag'],['psn','PSN ID','Your PSN ID'],['twitch','Twitch','https://twitch.tv/…'],['youtube','YouTube','https://youtube.com/@…'],['other','Other link','https://…']];
+function applyAccent(){
+  const a=ACCENTS.find(x=>x[0]===S.profile.accent); let st=document.getElementById('accentStyle');
+  if(!a){ st?.remove(); return; }
+  if(!st){ st=document.createElement('style'); st.id='accentStyle'; document.head.appendChild(st); }
+  const soft=(c,p)=>`color-mix(in srgb, ${c} ${p}%, transparent)`;
+  st.textContent=`:root{--accent:${a[2]};--accent-ink:#fff;--accent-soft:${soft(a[2],14)};--info:${a[2]}}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--accent:${a[3]};--accent-ink:#0E1015;--accent-soft:${soft(a[3],18)};--info:${a[3]}}}
+:root[data-theme="dark"]{--accent:${a[3]};--accent-ink:#0E1015;--accent-soft:${soft(a[3],18)};--info:${a[3]}}`;
+}
+function linkHref(k,v){
+  v=String(v||'').trim(); if(!v) return '';
+  if(k==='xbox') return 'https://www.xbox.com/en-US/play/user/'+encodeURIComponent(v);
+  if(k==='psn') return 'https://psnprofiles.com/'+encodeURIComponent(v);
+  if(/^https?:\/\//i.test(v)) return v;
+  return '';
+}
+function profileLinks(){
+  const L=S.profile.links||{};
+  const items=LINK_KINDS.map(([k,l])=>{ const v=L[k]; if(!v) return ''; const h=linkHref(k,v);
+    const label=k==='xbox'?`Xbox · ${v}`:k==='psn'?`PSN · ${v}`:l.replace(' profile','');
+    return h?`<a class="plink" href="${esc(h)}" target="_blank" rel="noopener me">${esc(label)} ↗</a>`:`<span class="plink">${esc(label)}</span>`; }).join('');
+  return items?`<div class="plinks">${items}</div>`:'';
+}
+function avatarHtml(){
+  const initial=(S.profile.name||'?').trim().charAt(0).toUpperCase()||'?';
+  return S.profile.avatar?`<div class="avatar"><img src="${esc(S.profile.avatar)}" alt=""></div>`:`<div class="avatar">${esc(initial)}</div>`;
+}
+function imgToSquare(file,size){
+  return new Promise((res,rej)=>{
+    if(!file||!/^image\//.test(file.type||'')) return rej(new Error('type'));
+    const url=URL.createObjectURL(file), im=new Image();
+    im.onload=()=>{ const c=document.createElement('canvas'); c.width=size; c.height=size; const x=c.getContext('2d');
+      const s=Math.max(size/im.naturalWidth,size/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
+      x.drawImage(im,(size-w)/2,(size-h)/2,w,h); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',0.85)); };
+    im.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('load')); };
+    im.src=url;
+  });
+}
 function profileForm(){
+  const P=S.profile, L=P.links||{}; let avatar=P.avatar||'';
   openDlg(`<form class="dlg" id="pform" novalidate>
     <div class="dlg-head"><h2>Edit profile</h2><button type="button" class="btn ghost sm" data-close>Cancel</button></div>
     <div class="dlg-body"><div class="form">
-      <div class="field full"><label for="p-name">Display name</label><input class="input" id="p-name" name="name" value="${esc(S.profile.name||'')}" maxlength="40"></div>
-      <div class="field full"><label for="p-bio">Bio</label><textarea class="input" id="p-bio" name="bio" maxlength="240" placeholder="What you play and how you rate">${esc(S.profile.bio||'')}</textarea></div>
-    </div></div>
-    <div class="dlg-foot"><button type="submit" class="btn primary">Save profile</button></div></form>`);
-  $('#pform').addEventListener('submit',async e=>{ e.preventDefault(); const fd=new FormData(e.target); closeDlg();
-    await commit(()=>{ S.profile={name:(fd.get('name')||'').trim(), bio:(fd.get('bio')||'').trim()}; return writeProfile; }, 'Profile saved'); });
+      <div class="field full"><label>Picture</label><div class="rate-row" id="avDrop"><div id="avPrev"></div>
+        <div class="cover-btns"><label class="btn sm" for="p-av">Upload</label><button type="button" class="btn ghost sm" id="avClear">Remove</button></div>
+        <input type="file" accept="image/*" id="p-av" class="vh"></div></div>
+      <div class="field full"><label for="p-name">Display name</label><input class="input" id="p-name" name="name" value="${esc(P.name||'')}" maxlength="40"></div>
+      <div class="field full"><label for="p-bio">Bio</label><textarea class="input" id="p-bio" name="bio" maxlength="240" placeholder="What you play and how you rate">${esc(P.bio||'')}</textarea></div>
+      <div class="field full"><label>Accent color</label><div class="swatches" role="radiogroup" aria-label="Accent color">
+        ${ACCENTS.map(a=>`<label class="swatch" title="${a[1]}"><input type="radio" name="accent" value="${a[0]}" ${(P.accent||'blue')===a[0]?'checked':''}><span style="--sw:${a[2]}"></span><span class="vh">${a[1]}</span></label>`).join('')}
+      </div></div>
+      ${LINK_KINDS.map(([k,l,ph])=>`<div class="field"><label for="p-l-${k}">${l}</label><input class="input" id="p-l-${k}" name="l_${k}" value="${esc(L[k]||'')}" placeholder="${esc(ph)}" autocomplete="off"></div>`).join('')}
+    </div><p id="formErr" style="color:var(--bad);margin:0" hidden></p></div>
+    <div class="dlg-foot"><button type="submit" class="btn primary">Save profile</button><span style="color:var(--muted);font-size:13px">Links show on your public profile.</span></div></form>`);
+  const draw=()=>{ $('#avPrev').innerHTML=`<div class="avatar sm">${avatar?`<img src="${esc(avatar)}" alt="">`:esc(((($('#p-name')?.value)||P.name||'?').trim().charAt(0)||'?').toUpperCase())}</div>`; $('#avClear').hidden=!avatar; };
+  const take=async f=>{ try{ avatar=await imgToSquare(f,256); draw(); }catch(_){ const p=$('#formErr'); p.textContent='That file isn\'t an image this page can read. Try a JPG or PNG.'; p.hidden=false; } };
+  draw(); onPasteImage=take; wireDrop($('#avDrop'),take);
+  $('#p-av').addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) take(f); });
+  $('#avClear').addEventListener('click',()=>{ avatar=''; draw(); });
+  $('#pform').addEventListener('submit',async e=>{ e.preventDefault(); const fd=new FormData(e.target);
+    const links={}; LINK_KINDS.forEach(([k])=>{ const v=(fd.get('l_'+k)||'').trim(); if(v) links[k]=v; });
+    const bad=Object.entries(links).find(([k,v])=>!['xbox','psn'].includes(k) && !/^https?:\/\//i.test(v));
+    if(bad){ const p=$('#formErr'); p.textContent='Links need to start with https:// (gamertags and PSN IDs can be plain names).'; p.hidden=false; return; }
+    closeDlg();
+    await commit(()=>{ S.profile={...S.profile, name:(fd.get('name')||'').trim(), bio:(fd.get('bio')||'').trim(), accent:fd.get('accent')||'blue', avatar, links}; applyAccent(); return writeProfile; }, 'Profile saved'); });
 }
 function loginForm(){
   openDlg(`<form class="dlg" id="lform" novalidate>
@@ -989,6 +1063,8 @@ document.addEventListener('click', async e=>{
   const t=e.target.closest('button'); if(!t) return; const d=t.dataset;
   if(d.tab){ S.tab=d.tab; S.libLimit=120; try{history.replaceState(null,'','#'+d.tab);}catch(_){} render(); window.scrollTo({top:0}); return; }
   if(d.close!==undefined){ closeDlg(); return; }
+  if(d.share){ const url=location.origin+location.pathname+'#g-'+d.share;
+    try{ await navigator.clipboard.writeText(url); toast('Link copied'); }catch(_){ toast(url); } return; }
   if(d.open && S.selMode && canWrite() && t.classList.contains('card') && S.tab==='library'){ S.sel=S.sel||new Set(); S.sel.has(d.open)?S.sel.delete(d.open):S.sel.add(d.open); render(); return; }
   if(d.open){ detail(d.open); return; }
   if(d.edit){ editForm(d.edit); return; }
@@ -1086,7 +1162,7 @@ document.addEventListener('keydown', e=>{
   else if(e.key==='ArrowRight'){ e.preventDefault(); RATE.i++; rateStep(); }
   else if(e.key==='ArrowLeft'){ e.preventDefault(); RATE.i=Math.max(0,RATE.i-1); rateStep(); }
 });
-window.addEventListener('hashchange',()=>{ const t=location.hash.slice(1); if(TABS.some(x=>x.k===t) && S.tab!==t){ S.tab=t; render(); } });
+window.addEventListener('hashchange',()=>{ const t=location.hash.slice(1); if(t.startsWith('g-')){ if(!dlg.open) detail(t.slice(2)); return; } if(TABS.some(x=>x.k===t) && S.tab!==t){ S.tab=t; render(); } });
 
 /* ============ boot ============ */
 render();
