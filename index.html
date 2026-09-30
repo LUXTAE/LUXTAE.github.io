@@ -461,6 +461,7 @@ const stars = (r,lg) => r==null||r===''? '' : `<span class="stars${lg?' lg':''}"
 const pill = st => `<span class="pill s-${esc(st)}">${esc(SLABEL[st]||st)}</span>`;
 const newId = () => 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const byId = id => S.games.find(g=>g.id===id);
+const decodeEnt = t => { const el=document.createElement('textarea'); el.innerHTML=String(t||''); return el.value; };
 const STEAM_IMG = (id,f) => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${encodeURIComponent(id)}/${f}`;
 
 function coverSrc(g){
@@ -909,7 +910,7 @@ function detail(id){
         ${(g.tags||[]).length?`<div class="card-meta">${g.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
         <div class="links">${g.steam?`<a href="https://store.steampowered.com/app/${esc(g.steam)}" target="_blank" rel="noopener">Steam ↗</a>`:''}<a href="https://howlongtobeat.com/?q=${q}" target="_blank" rel="noopener">HowLongToBeat ↗</a><a href="https://backloggd.com/search/games/${q}" target="_blank" rel="noopener">Backloggd ↗</a></div>
       </div></div>
-      ${g.about?`<p class="about">${esc(g.about)}${g.metacritic?` <span class="mc" title="Metacritic score">${esc(g.metacritic)}</span>`:''}</p>`:(g.metacritic?`<p class="about"><span class="mc" title="Metacritic score">Metacritic ${esc(g.metacritic)}</span></p>`:'')}
+      ${g.about?`<p class="about">${esc(decodeEnt(g.about))}${g.metacritic?` <span class="mc" title="Metacritic score">${esc(g.metacritic)}</span>`:''}</p>`:(g.metacritic?`<p class="about"><span class="mc" title="Metacritic score">Metacritic ${esc(g.metacritic)}</span></p>`:'')}
       ${(g.shots||[]).length?`<div class="shots">${g.shots.slice(0,4).map(u=>`<a href="${esc(String(u).replace('.600x338','.1920x1080'))}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Screenshot of ${esc(g.title)}" loading="lazy" referrerpolicy="no-referrer"></a>`).join('')}</div>`:''}
       ${g.review?`<div><div class="label" style="margin-bottom:6px">Review${g.spoiler?' · contains spoilers':''}</div><p class="review-full ${g.spoiler?'spoiler':''}" ${g.spoiler?'title="Click to reveal"':''}>${esc(g.review)}</p></div>`:''}
       ${(th||H.main||H.extra||H.comp)?`<div><div class="label" style="margin-bottom:8px">Time</div><div class="time">${trow('Played',th,true)}${trow('Main story',+H.main)}${trow('Main + extras',+H.extra)}${trow('Completionist',+H.comp)}</div></div>`:''}
