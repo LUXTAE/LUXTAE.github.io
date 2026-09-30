@@ -374,6 +374,7 @@ a.plink:hover{text-decoration:underline}
 .tag.genre{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 .strip{display:grid;grid-auto-flow:column;grid-auto-columns:120px;gap:12px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
 @media (max-width:520px){ .strip{grid-auto-columns:100px} }
+.theme-btn{font-size:13px}
 footer{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:0 40px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--faint);font-size:13px}
 footer .btn{color:var(--faint)}
 </style>
@@ -385,6 +386,7 @@ footer .btn{color:var(--faint)}
     <div class="hud-top">
       <div class="brand"><div class="brand-mark">SF</div><span class="brand-name">Save File</span><span class="brand-owner" id="brandOwner"></span></div>
       <div class="spacer"></div>
+      <button class="btn ghost sm theme-btn" id="themeBtn" type="button" aria-label="Switch light or dark mode" title="Light or dark"></button>
       <div id="ownerBar" class="toolbar"></div>
     </div>
     <nav class="tabs" id="tabs" aria-label="Sections"></nav>
@@ -1187,7 +1189,7 @@ document.addEventListener('click', async e=>{
   else if(act==='rskip'){ RATE.i++; rateStep(); }
   else if(act==='rback'){ RATE.i=Math.max(0,RATE.i-1); rateStep(); }
   else if(d.rrate){ const g=RATE.list[RATE.i]; if(!g) return; const v=+d.rrate; RATE.done++; RATE.i++;
-    const cur=byId(g.id)||g; saveGame({...cur, rating:v, updatedAt:Date.now()}); rateStep(); }
+    const cur=byId(g.id)||g; const qt=($('#quicktake')?.value||'').trim(); saveGame({...cur, rating:v, ...(qt!==(cur.review||'')?{review:qt}:{}), updatedAt:Date.now()}); rateStep(); }
   else if(d.rstatus){ const g=RATE.list[RATE.i]; if(!g) return; const cur=byId(g.id)||g;
     const ng={...cur, status:d.rstatus, updatedAt:Date.now()}; if((d.rstatus==='beaten'||d.rstatus==='completed')&&!ng.finished) ng.finished=cur.lastPlayed||'';
     RATE.list[RATE.i]=ng; saveGame(ng); rateStep(); }
@@ -1238,8 +1240,9 @@ function rateStep(){
         <h3>${esc(cur.title)}</h3>
         <div class="kv">${cur.platform?`<span>${esc(cur.platform)}</span>`:''}${h?`<span class="num">${fmtH(h)} played</span>`:''}${cur.lastPlayed?`<span>Last played ${esc(fmtDate(cur.lastPlayed))}</span>`:''}</div>
         <div class="rater big" role="group" aria-label="Rating">${Array.from({length:10},(_,i)=>i+1).map(v=>`<button class="half ${v%2?'l':'r'}" data-rrate="${v}" aria-label="${v/2} stars"><span>★</span></button>`).join('')}</div>
+        <input class="input" id="quicktake" maxlength="280" placeholder="Quick take (optional), saved with your rating" value="${esc(cur.review||'')}" autocomplete="off">
         <div class="chips" role="group" aria-label="Status">${sts.map(([k,l])=>`<button class="chip" data-rstatus="${k}" aria-pressed="${cur.status===k}">${l}</button>`).join('')}</div>
-        <p class="hint" style="margin:0;color:var(--muted);font-size:13px">Tap the stars to rate and move on. Keys 1 to 5 rate, → skips, ← goes back.</p>
+        <p class="hint" style="margin:0;color:var(--muted);font-size:13px">Tap the stars to rate and move on. Type a quick take first if you want. Keys 1 to 5 rate, → skips, ← goes back.</p>
       </div>
     </div>
     <div class="dlg-foot"><button class="btn ghost" data-act="rback" ${RATE.i?'':'disabled'}>Back</button><span class="spacer"></span><button class="btn" data-act="rskip">Skip</button></div>
@@ -1312,6 +1315,19 @@ async function exportTiers(){
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tier-list.png'; document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },800); toast('Saved tier-list.png');
 }
+/* ============ theme ============ */
+function applyTheme(){
+  let t=null; try{ t=localStorage.getItem('sf.theme'); }catch(_){}
+  if(t==='light'||t==='dark') document.documentElement.setAttribute('data-theme',t); else document.documentElement.removeAttribute('data-theme');
+  const dark = t ? t==='dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const b=document.getElementById('themeBtn'); if(b) b.textContent = dark ? '☀ Light' : '☾ Dark';
+}
+document.getElementById('themeBtn')?.addEventListener('click',()=>{
+  const dark = document.documentElement.getAttribute('data-theme') ? document.documentElement.getAttribute('data-theme')==='dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  try{ localStorage.setItem('sf.theme', dark?'light':'dark'); }catch(_){}
+  applyTheme();
+});
+applyTheme();
 /* ============ boot ============ */
 render();
 (async()=>{
